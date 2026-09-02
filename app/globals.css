@@ -50,7 +50,7 @@ textarea:focus-visible {
 
 .app-shell {
   width: 100%;
-  max-width: 540px;
+  max-width: 920px;
   min-height: 100vh;
   margin: 0 auto;
   padding: env(safe-area-inset-top) 18px calc(104px + env(safe-area-inset-bottom));
@@ -1005,17 +1005,56 @@ code {
   border: 0;
 }
 
+@media (max-width: 359px) {
+  .app-shell {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .hero { gap: 8px; }
+  .hero h1 { font-size: 2rem; }
+  .quick-grid { gap: 8px; }
+  .quick-button { min-height: 122px; padding: 13px; border-radius: 21px; }
+  .quick-emoji { margin-bottom: 11px; }
+  .last-cards, .growth-cards { gap: 7px; }
+  .last-card, .metric-card { padding: 12px; }
+  .event-main { grid-template-columns: 42px minmax(0, 1fr) auto; gap: 8px; padding-left: 10px; }
+  .event-icon { width: 42px; height: 42px; }
+  .chevron { display: none; }
+  .quick-delete { min-width: 50px; margin-right: 6px; padding: 0 6px; }
+  .toast { right: 6px; left: 6px; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .toast .toast-close { display: none; }
+}
+
 @media (min-width: 700px) {
   .app-shell {
+    width: calc(100% - 32px);
     min-height: calc(100vh - 40px);
     margin-top: 20px;
+    padding-right: 30px;
+    padding-left: 30px;
     border: 1px solid rgba(99, 73, 64, 0.08);
     border-radius: 30px;
     background: rgba(247, 241, 236, 0.72);
     box-shadow: 0 25px 80px rgba(60, 41, 35, 0.12);
   }
-  .bottom-nav { bottom: 20px; border: 1px solid rgba(99, 73, 64, 0.1); border-radius: 20px; }
-  .toast { bottom: 108px; }
+
+  .hero { padding-top: 34px; }
+  .quick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .quick-button { min-height: 148px; }
+  .last-cards, .growth-cards { gap: 14px; }
+  .summary-strip { padding: 14px 8px; }
+  .event-main { min-height: 78px; padding-right: 14px; }
+  .measurement-row { min-height: 74px; padding-right: 20px; padding-left: 20px; }
+  .bottom-nav {
+    bottom: 20px;
+    width: min(840px, calc(100% - 64px));
+    border: 1px solid rgba(99, 73, 64, 0.1);
+    border-radius: 20px;
+  }
+  .toast { bottom: 108px; max-width: 700px; }
+  .modal-backdrop { align-items: center; padding: 32px; }
+  .bottom-sheet { width: min(620px, 100%); border-radius: 28px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
