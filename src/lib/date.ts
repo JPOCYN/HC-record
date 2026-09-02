@@ -16,10 +16,10 @@ export function dayBounds(date: string): { start: string; end: string } {
 }
 
 export function formatTime(value: string): string {
-  return new Intl.DateTimeFormat("en-HK", {
+  return new Intl.DateTimeFormat("en-US", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
   }).format(new Date(value));
 }
 

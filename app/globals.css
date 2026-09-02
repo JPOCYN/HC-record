@@ -79,6 +79,13 @@ textarea:focus-visible {
   line-height: 1;
 }
 
+.hero-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 13px;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--brand-dark);
@@ -95,8 +102,8 @@ textarea:focus-visible {
 }
 
 .current-time {
-  display: block;
-  margin-top: 8px;
+  display: inline-block;
+  margin: 0;
   color: var(--brand-dark);
   font-size: 1.05rem;
   font-weight: 800;
@@ -328,6 +335,13 @@ textarea:focus-visible {
   font-size: 0.68rem;
   font-weight: 800;
 }
+
+.quick-delete.confirm {
+  color: #fff;
+  background: #b94d43;
+}
+
+.quick-delete:disabled { opacity: 0.58; }
 
 .event-icon {
   display: grid;
@@ -615,6 +629,21 @@ textarea {
   gap: 14px;
 }
 
+.profile-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.profile-summary > div { min-width: 0; }
+.profile-summary span,
+.profile-summary strong,
+.profile-summary small { display: block; }
+.profile-summary span { color: #3e7564; font-size: 0.68rem; font-weight: 800; }
+.profile-summary strong { margin-top: 4px; font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 500; }
+.profile-summary small { margin-top: 5px; color: var(--muted); font-size: 0.72rem; line-height: 1.4; }
+
 .chatgpt-card {
   display: grid;
   grid-template-columns: 48px 1fr;
@@ -748,6 +777,55 @@ code {
   gap: 13px;
 }
 
+.amount-picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.amount-picker legend {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.amount-picker > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.amount-picker button {
+  min-height: 48px;
+  padding: 4px;
+  border: 1px solid #e0d3cc;
+  border-radius: 13px;
+  color: var(--ink);
+  background: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.amount-picker button small { margin-left: 2px; color: var(--muted); font-size: 0.62rem; }
+
+.amount-picker button.selected {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: #fff0ea;
+}
+
+.optional-toggle {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  color: var(--brand-dark);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: left;
+}
+
 .poo-picker,
 .diaper-picker {
   margin: 0;
@@ -804,7 +882,8 @@ code {
   position: fixed;
   z-index: 40;
   right: 12px;
-  bottom: calc(84px + env(safe-area-inset-bottom));
+  top: calc(12px + env(safe-area-inset-top));
+  bottom: auto;
   left: 12px;
   display: grid;
   grid-template-columns: 1fr auto auto 32px;
@@ -1069,7 +1148,7 @@ code {
     border: 1px solid rgba(99, 73, 64, 0.1);
     border-radius: 20px;
   }
-  .toast { bottom: 108px; max-width: 700px; }
+  .toast { top: 32px; bottom: auto; max-width: 700px; }
   .modal-backdrop { align-items: center; padding: 32px; }
   .bottom-sheet { width: min(620px, 100%); border-radius: 28px; }
 }

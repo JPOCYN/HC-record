@@ -127,6 +127,12 @@ export function BabyTracker() {
   }, []);
 
   useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
     if (!supabase) return;
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -467,13 +473,13 @@ export function BabyTracker() {
     setBusy(false);
   }
 
-  async function saveProfile(next: BabyProfile) {
+  async function saveProfile(next: BabyProfile): Promise<boolean> {
     setBusy(true);
     setError(null);
     if (!supabase || !session) {
       setProfile(next);
       setBusy(false);
-      return;
+      return true;
     }
     const { data, error: updateError } = await supabase
       .from("babies")
@@ -488,6 +494,7 @@ export function BabyTracker() {
     if (updateError) setError(updateError.message);
     else setProfile(data as BabyProfile);
     setBusy(false);
+    return !updateError;
   }
 
   if (!authChecked) return <LoadingScreen />;
@@ -506,9 +513,11 @@ export function BabyTracker() {
       <header className="hero">
         <div>
           <p className="eyebrow">Baby record</p>
-          <h1>{profile.name}</h1>
-          <p className="baby-age">Girl · {ageLabel(profile.date_of_birth)}</p>
-          <time className="current-time" dateTime={now.toISOString()}>{formatCurrentDateTime(now)}</time>
+          <div className="hero-name-row">
+            <h1>{profile.name}</h1>
+            <time className="current-time" dateTime={now.toISOString()}>{formatCurrentTime(now)}</time>
+          </div>
+          <p className="baby-age">{formatCurrentDate(now)} · Girl · {ageLabel(profile.date_of_birth)}</p>
         </div>
         <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
           <span className="status-dot" />
@@ -765,23 +774,38 @@ function SettingsView({
   profile: BabyProfile;
   configured: boolean;
   busy: boolean;
-  onSave: (profile: BabyProfile) => Promise<void>;
+  onSave: (profile: BabyProfile) => Promise<boolean>;
   onSignOut?: () => void;
 }) {
   const [draft, setDraft] = useState(profile);
+  const [editing, setEditing] = useState(false);
+
+  async function submitProfile(event: FormEvent) {
+    event.preventDefault();
+    if (await onSave(draft)) setEditing(false);
+  }
+
   return (
     <section>
       <div className="section-title"><div><p className="eyebrow">Settings</p><h2>Baby profile</h2></div></div>
-      <form className="panel settings-form" onSubmit={(event) => { event.preventDefault(); void onSave(draft); }}>
-        <label><span>Name</span><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
-        <label><span>Date of birth</span><input type="date" value={draft.date_of_birth} max={dateKey(new Date())} onChange={(event) => setDraft({ ...draft, date_of_birth: event.target.value })} required /></label>
-        <label><span>Time zone</span><select value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}><option value="Asia/Hong_Kong">Hong Kong</option></select></label>
-        <button className="primary-button" type="submit" disabled={busy || !draft.name.trim()}>Save profile</button>
-      </form>
+      {editing ? (
+        <form className="panel settings-form" onSubmit={(event) => void submitProfile(event)}>
+          <div className="form-heading"><strong>Edit profile</strong><button type="button" onClick={() => { setDraft(profile); setEditing(false); }}>Cancel</button></div>
+          <label><span>Name</span><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
+          <label><span>Date of birth</span><input type="date" value={draft.date_of_birth} max={dateKey(new Date())} onChange={(event) => setDraft({ ...draft, date_of_birth: event.target.value })} required /></label>
+          <label><span>Time zone</span><select value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}><option value="Asia/Hong_Kong">Hong Kong</option></select></label>
+          <button className="primary-button" type="submit" disabled={busy || !draft.name.trim()}>{busy ? "Saving…" : "Save profile"}</button>
+        </form>
+      ) : (
+        <div className="panel profile-summary">
+          <div><span>Profile saved</span><strong>{profile.name}</strong><small>Girl · Born {formatShortDate(profile.date_of_birth)} · Hong Kong</small></div>
+          <button className="small-action" type="button" onClick={() => { setDraft(profile); setEditing(true); }}>Edit</button>
+        </div>
+      )}
 
       <div className="panel chatgpt-card">
         <div className="chatgpt-mark">✦</div>
-        <div><p className="eyebrow">ChatGPT access</p><h3>Ask about her records</h3><p>The private MCP endpoint is available at <code>/mcp</code> after deployment. It is read-only and requires your Supabase approval.</p><span className="connection-note">{configured ? "Supabase connected · OAuth setup remains" : "Connect Supabase before enabling ChatGPT"}</span></div>
+        <div><p className="eyebrow">ChatGPT access</p><h3>Ask about her records</h3><p>Once connected, ChatGPT can privately read Harper&apos;s records and answer questions. It cannot add, edit, or delete anything.</p><span className="connection-note">{configured ? "Not connected yet · one-time setup remains" : "Connect Supabase before enabling ChatGPT"}</span></div>
       </div>
 
       {!configured ? <div className="setup-note"><strong>Demo mode</strong><p>Your changes are stored only in this browser. Add the Supabase values from <code>.env.example</code> to enable private cloud storage.</p></div> : null}
@@ -826,6 +850,7 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
   const [milkType, setMilkType] = useState<MilkType>("formula");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
   const [diaperType, setDiaperType] = useState<DiaperType | null>(null);
   const [pooLevel, setPooLevel] = useState<number | null>(null);
   const meta = EVENT_META[type];
@@ -857,13 +882,17 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
           });
         }}>
           {type === "milk" ? <>
-            <label><span>How much did she drink? (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="120" required autoFocus /></label>
+            <fieldset className="amount-picker"><legend>Quick amount</legend><div>{[60, 90, 120, 150, 180, 210].map((value) => <button className={amount === String(value) ? "selected" : ""} type="button" key={value} onClick={() => setAmount(String(value))} aria-pressed={amount === String(value)}>{value}<small>ml</small></button>)}</div></fieldset>
+            <label><span>Amount (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Enter another amount" required /></label>
             <label><span>Milk type</span><select value={milkType} onChange={(event) => setMilkType(event.target.value as MilkType)}><option value="formula">Formula</option><option value="cow_milk">Cow&apos;s milk</option></select></label>
           </> : null}
           {type === "food" ? <label><span>What did she eat?</span><textarea rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Banana and oatmeal" required autoFocus /></label> : null}
           {type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
           {type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
-          {type !== "food" ? <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" /></label> : null}
+          {type !== "food" ? <>
+            <button className="optional-toggle" type="button" aria-expanded={showNote} onClick={() => setShowNote((current) => !current)}>{showNote ? "− Hide note" : "+ Add note (optional)"}</button>
+            {showNote ? <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" autoFocus /></label> : null}
+          </> : null}
           <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label>
           <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? "Saving…" : `Save ${meta.label.toLowerCase()}`}</button>
         </form>
@@ -944,11 +973,33 @@ function SummaryCounts({ events }: { events: BabyEvent[] }) {
 }
 
 function EventList({ events, onEdit, onDelete, empty }: { events: BabyEvent[]; onEdit: (event: BabyEvent) => void; onDelete: (id: string) => Promise<void>; empty: string }) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmDeleteId) return;
+    const timer = window.setTimeout(() => setConfirmDeleteId(null), 4_000);
+    return () => window.clearTimeout(timer);
+  }, [confirmDeleteId]);
+
+  async function handleDelete(id: string) {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      return;
+    }
+    setDeletingId(id);
+    await onDelete(id);
+    setDeletingId(null);
+    setConfirmDeleteId(null);
+  }
+
   if (!events.length) return <EmptyState text={empty} />;
   return <div className="event-list">{events.map((event) => {
     const meta = EVENT_META[event.event_type];
     const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? milkTypeLabel(event.milk_type) : null, event.diaper_type ? diaperTypeLabel(event.diaper_type) : null, event.poo_level ? `Level ${event.poo_level}/5` : null, event.note].filter(Boolean).join(" · ");
-    return <div className="event-row" key={event.id}><button className="event-main" type="button" onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{meta.label}</strong><small>{details || "Tap to add details"}</small></span><time>{formatTime(event.occurred_at)}</time><span className="chevron">›</span></button><button className="quick-delete" type="button" aria-label={`Delete ${meta.label} record at ${formatTime(event.occurred_at)}`} onClick={() => { if (window.confirm(`Delete this ${meta.label.toLowerCase()} record?`)) void onDelete(event.id); }}>Delete</button></div>;
+    const confirming = confirmDeleteId === event.id;
+    const deleting = deletingId === event.id;
+    return <div className="event-row" key={event.id}><button className="event-main" type="button" onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{meta.label}</strong><small>{details || "Tap to add details"}</small></span><time>{formatTime(event.occurred_at)}</time><span className="chevron">›</span></button><button className={`quick-delete ${confirming ? "confirm" : ""}`} type="button" disabled={deleting} aria-label={confirming ? `Confirm delete ${meta.label} record` : `Delete ${meta.label} record at ${formatTime(event.occurred_at)}`} onClick={() => void handleDelete(event.id)}>{deleting ? "Deleting…" : confirming ? "Confirm" : "Delete"}</button></div>;
   })}</div>;
 }
 
@@ -1001,15 +1052,21 @@ function upsertById<T extends { id: string }>(current: T[], changed: T, sort: (a
   return [changed, ...current.filter((item) => item.id !== changed.id)].sort(sort);
 }
 
-function formatCurrentDateTime(date: Date) {
+function formatCurrentTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Hong_Kong",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+function formatCurrentDate(date: Date) {
   return new Intl.DateTimeFormat("en-HK", {
     timeZone: "Asia/Hong_Kong",
     weekday: "short",
     day: "numeric",
     month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
   }).format(date);
 }
 

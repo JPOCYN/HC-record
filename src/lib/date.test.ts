@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, shiftDate } from "./date";
+import { ageLabel, formatTime, shiftDate } from "./date";
 
 describe("date helpers", () => {
   it("calculates the supplied baby age", () => {
@@ -10,5 +10,9 @@ describe("date helpers", () => {
 
   it("moves between calendar days", () => {
     expect(shiftDate("2026-09-02", -1)).toBe("2026-09-01");
+  });
+
+  it("formats record times with am or pm", () => {
+    expect(formatTime("2026-09-02T14:30:00Z")).toMatch(/(AM|PM)/);
   });
 });
