@@ -58,10 +58,10 @@ textarea:focus-visible {
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.9fr);
-  align-items: stretch;
-  gap: 16px;
-  padding: 28px 4px 20px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 4px 18px;
 }
 
 .hero h1,
@@ -97,21 +97,19 @@ textarea:focus-visible {
 .mobile-date { display: none; }
 
 .now-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-  min-height: 104px;
-  padding: 14px 16px 14px 20px;
-  border: 1px solid rgba(99, 73, 64, 0.08);
-  border-radius: 22px;
-  background: rgba(255, 253, 251, 0.72);
-  box-shadow: 0 8px 26px rgba(87, 57, 47, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  min-width: 150px;
 }
 
 .now-copy {
-  grid-row: 1;
-  grid-column: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .now-copy span,
@@ -120,19 +118,18 @@ textarea:focus-visible {
 }
 
 .now-copy span {
-  margin-bottom: 4px;
+  margin: 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
 .now-copy time {
   color: var(--brand-dark);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.65rem, 5vw, 2.25rem);
-  font-weight: 500;
+  font-size: 1.05rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.015em;
 }
 
 .status-pill {
@@ -151,8 +148,6 @@ textarea:focus-visible {
 }
 
 .now-panel .status-pill {
-  grid-row: 1;
-  grid-column: 2;
   margin: 0;
 }
 
@@ -234,33 +229,32 @@ textarea:focus-visible {
 }
 
 .today-schedule {
-  margin: -6px 0 26px;
-  padding: 17px;
+  display: grid;
+  grid-template-columns: minmax(118px, 0.34fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin: 15px 0 0;
+  padding: 11px 13px;
   border: 1px solid rgba(83, 126, 99, 0.16);
-  border-radius: 22px;
+  border-radius: 18px;
   background: rgba(232, 242, 231, 0.74);
   box-shadow: 0 10px 28px rgba(63, 100, 74, 0.07);
 }
 
 .today-schedule-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  display: block;
+  margin: 0;
 }
 
 .today-schedule-heading h2 {
   margin: 3px 0 0;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.35rem;
+  font-size: 1.05rem;
   font-weight: 500;
 }
 
 .today-schedule-heading > span {
-  color: #557363;
-  font-size: 0.7rem;
-  font-weight: 800;
+  display: none;
 }
 
 .today-schedule-list {
@@ -270,18 +264,56 @@ textarea:focus-visible {
 
 .today-schedule-item {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border-radius: 15px;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.7);
+}
+
+.today-schedule-item .schedule-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 1.05rem;
 }
 
 .today-schedule-item strong,
 .today-schedule-item small { display: block; }
 .today-schedule-item strong { font-size: 0.88rem; }
 .today-schedule-item small { overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 0.69rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.today-view > .last-cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  margin: 15px 0 0;
+  border: 1px solid rgba(99, 73, 64, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 253, 251, 0.78);
+  box-shadow: 0 8px 24px rgba(87, 57, 47, 0.05);
+}
+
+.today-view .last-card {
+  min-width: 0;
+  padding: 12px 10px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: center;
+}
+
+.today-view .last-card:nth-child(1) { order: 1; }
+.today-view .milk-total-card { display: block; order: 2; grid-column: auto; }
+.today-view .last-card:nth-child(2) { order: 3; border-right: 0; }
+.today-view .last-card span { overflow: hidden; margin-bottom: 4px; font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
+.today-view .last-card strong { overflow: hidden; display: block; font-size: 0.86rem; text-overflow: ellipsis; white-space: nowrap; }
+.today-view .milk-total-card strong { font-family: inherit; font-size: 1rem; font-weight: 800; }
+.today-view .milk-total-card small { display: none; }
+.today-view .timeline-section { margin-top: 26px; }
 
 .section-title {
   display: flex;
@@ -311,7 +343,7 @@ textarea:focus-visible {
 }
 
 .quick-button {
-  min-height: 134px;
+  min-height: 120px;
   padding: 15px;
   border: 0;
   border-radius: 25px;
@@ -1490,16 +1522,13 @@ code {
   .mobile-date { display: inline; }
 
   .now-panel {
-    display: block;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+    min-width: 78px;
+    gap: 4px;
   }
 
-  .now-copy { display: none; }
+  .now-copy { display: block; }
+  .now-copy span { display: none; }
+  .now-copy time { font-size: 0.92rem; }
   .now-panel .status-pill { padding: 7px 9px; }
 
   .quick-record-section .section-title { align-items: center; margin-bottom: 10px; }
@@ -1532,34 +1561,17 @@ code {
   .today-schedule-item small { font-size: 0.62rem; }
 
   .today-view > .last-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
-    overflow: hidden;
     margin: 13px 0 0;
-    border: 1px solid rgba(99, 73, 64, 0.08);
     border-radius: 17px;
-    background: rgba(255, 253, 251, 0.78);
-    box-shadow: 0 8px 24px rgba(87, 57, 47, 0.05);
   }
 
   .today-view .last-card {
-    min-width: 0;
     padding: 10px 6px;
-    border: 0;
-    border-right: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    text-align: center;
   }
 
-  .today-view .last-card:nth-child(1) { order: 1; }
-  .today-view .milk-total-card { display: block; order: 2; grid-column: auto; }
-  .today-view .last-card:nth-child(2) { order: 3; border-right: 0; }
   .today-view .last-card span { overflow: hidden; margin-bottom: 4px; font-size: 0.55rem; text-overflow: ellipsis; white-space: nowrap; }
   .today-view .last-card strong { overflow: hidden; display: block; font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
   .today-view .milk-total-card strong { font-family: inherit; font-size: 0.9rem; font-weight: 800; }
-  .today-view .milk-total-card small { display: none; }
   .today-view .timeline-section { margin-top: 24px; }
 }
 
@@ -1600,11 +1612,11 @@ code {
     box-shadow: 0 25px 80px rgba(60, 41, 35, 0.12);
   }
 
-  .hero { padding-top: 34px; }
-  .now-panel { min-width: 310px; }
+  .hero { padding-top: 26px; }
+  .now-panel { min-width: 170px; }
   .quick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-  .quick-button { min-height: 148px; }
-  .last-cards, .growth-cards { gap: 14px; }
+  .quick-button { min-height: 118px; }
+  .growth-cards { gap: 14px; }
   .summary-strip { padding: 14px 8px; }
   .event-main { min-height: 78px; padding-right: 14px; }
   .measurement-row { min-height: 74px; padding-right: 20px; padding-left: 20px; }
