@@ -96,10 +96,10 @@ textarea:focus-visible {
 
 .current-time {
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
   color: var(--brand-dark);
-  font-size: 0.78rem;
-  font-weight: 750;
+  font-size: 1.05rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -748,26 +748,32 @@ code {
   gap: 13px;
 }
 
-.poo-picker {
+.poo-picker,
+.diaper-picker {
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.poo-picker legend {
+.poo-picker legend,
+.diaper-picker legend {
   margin-bottom: 8px;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 750;
 }
 
-.poo-picker > div {
+.poo-picker > div,
+.diaper-picker > div {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
-.poo-picker button {
+.poo-picker > div { grid-template-columns: repeat(5, 1fr); }
+.diaper-picker > div { grid-template-columns: repeat(3, 1fr); }
+
+.poo-picker button,
+.diaper-picker button {
   min-height: 48px;
   border: 1px solid #e0d3cc;
   border-radius: 13px;
@@ -777,7 +783,18 @@ code {
   font-weight: 800;
 }
 
-.poo-picker button.selected {
+.diaper-picker button {
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  font-size: 0.82rem;
+}
+
+.diaper-picker button span { font-size: 1.2rem; }
+
+.poo-picker button.selected,
+.diaper-picker button.selected {
   border-color: #6f9a79;
   color: #315c3d;
   background: #dcecdf;

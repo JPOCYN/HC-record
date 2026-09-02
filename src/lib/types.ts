@@ -1,7 +1,8 @@
-export const EVENT_TYPES = ["milk", "food", "poo", "wee"] as const;
+export const EVENT_TYPES = ["milk", "food", "diaper", "shower"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
-export type MilkType = "formula" | "breast_milk" | "breastfeeding";
+export type MilkType = "formula" | "cow_milk" | "breast_milk" | "breastfeeding";
+export type DiaperType = "wee" | "poo" | "both";
 
 export interface BabyProfile {
   id: string;
@@ -22,6 +23,7 @@ export interface BabyEvent {
   occurred_at: string;
   milk_type: MilkType | null;
   amount_ml: number | null;
+  diaper_type: DiaperType | null;
   poo_level: number | null;
   note: string | null;
   created_at: string;
@@ -45,6 +47,7 @@ export interface EventDraft {
   occurred_at: string;
   milk_type?: MilkType | null;
   amount_ml?: number | null;
+  diaper_type?: DiaperType | null;
   poo_level?: number | null;
   note?: string | null;
 }

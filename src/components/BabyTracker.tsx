@@ -18,6 +18,7 @@ import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-
 import type {
   BabyEvent,
   BabyProfile,
+  DiaperType,
   EventDraft,
   EventType,
   Measurement,
@@ -30,8 +31,8 @@ type Tab = "today" | "history" | "growth" | "settings";
 const EVENT_META: Record<EventType, { emoji: string; label: string; color: string }> = {
   milk: { emoji: "🍼", label: "Milk", color: "peach" },
   food: { emoji: "🥣", label: "Food", color: "sun" },
-  poo: { emoji: "💩", label: "Poo", color: "sage" },
-  wee: { emoji: "💧", label: "Wee", color: "sky" },
+  diaper: { emoji: "🧷", label: "Diaper", color: "sage" },
+  shower: { emoji: "🚿", label: "Shower", color: "sky" },
 };
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
@@ -53,14 +54,14 @@ function makeDemoProfile(): BabyProfile {
 
 function makeDemoEvents(): BabyEvent[] {
   const now = Date.now();
-  const rows: Array<[EventType, number, number | null, string | null]> = [
-    ["milk", 42, 120, null],
-    ["wee", 104, null, null],
-    ["food", 188, null, "Banana and oatmeal"],
-    ["poo", 266, null, null],
-    ["milk", 338, 100, null],
+  const rows: Array<[EventType, number, number | null, string | null, DiaperType | null, number | null]> = [
+    ["milk", 42, 120, null, null, null],
+    ["diaper", 104, null, null, "wee", null],
+    ["food", 188, null, "Banana and oatmeal", null, null],
+    ["diaper", 266, null, null, "both", 3],
+    ["shower", 338, null, null, null, null],
   ];
-  return rows.map(([event_type, minutesAgo, amount_ml, note]) => {
+  return rows.map(([event_type, minutesAgo, amount_ml, note, diaper_type, poo_level]) => {
     const stamp = new Date(now - minutesAgo * 60_000).toISOString();
     return {
       id: crypto.randomUUID(),
@@ -70,7 +71,8 @@ function makeDemoEvents(): BabyEvent[] {
       occurred_at: stamp,
       milk_type: event_type === "milk" ? "formula" : null,
       amount_ml,
-      poo_level: event_type === "poo" ? 3 : null,
+      diaper_type,
+      poo_level,
       note,
       created_at: stamp,
       updated_at: stamp,
@@ -328,7 +330,8 @@ export function BabyTracker() {
       occurred_at: draft.occurred_at,
       milk_type: draft.event_type === "milk" ? draft.milk_type ?? null : null,
       amount_ml: draft.event_type === "milk" ? draft.amount_ml ?? null : null,
-      poo_level: draft.event_type === "poo" ? draft.poo_level ?? null : null,
+      diaper_type: draft.event_type === "diaper" ? draft.diaper_type ?? null : null,
+      poo_level: draft.event_type === "diaper" && (draft.diaper_type === "poo" || draft.diaper_type === "both") ? draft.poo_level ?? null : null,
       note: draft.note?.trim() || null,
       created_at: stamp,
       updated_at: stamp,
@@ -350,6 +353,7 @@ export function BabyTracker() {
         occurred_at: localEvent.occurred_at,
         milk_type: localEvent.milk_type,
         amount_ml: localEvent.amount_ml,
+        diaper_type: localEvent.diaper_type,
         poo_level: localEvent.poo_level,
         note: localEvent.note,
       })
@@ -369,7 +373,7 @@ export function BabyTracker() {
 
   async function quickAdd(type: EventType) {
     if (busy) return;
-    if (type !== "wee") {
+    if (type !== "shower") {
       setQuickEventType(type);
       return;
     }
@@ -401,7 +405,8 @@ export function BabyTracker() {
         occurred_at: event.occurred_at,
         milk_type: event.event_type === "milk" ? event.milk_type : null,
         amount_ml: event.event_type === "milk" ? event.amount_ml : null,
-        poo_level: event.event_type === "poo" ? event.poo_level : null,
+        diaper_type: event.event_type === "diaper" ? event.diaper_type : null,
+        poo_level: event.event_type === "diaper" && (event.diaper_type === "poo" || event.diaper_type === "both") ? event.poo_level : null,
         note: event.note?.trim() || null,
       })
       .eq("id", event.id)
@@ -630,7 +635,7 @@ function TodayView({
               >
                 <span className="quick-emoji" aria-hidden="true">{meta.emoji}</span>
                 <strong>{meta.label}</strong>
-                <small>{type === "wee" ? "Record now" : "Add details"}</small>
+                <small>{type === "shower" ? "Record now" : "Add details"}</small>
               </button>
             );
           })}
@@ -821,9 +826,17 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
   const [milkType, setMilkType] = useState<MilkType>("formula");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [diaperType, setDiaperType] = useState<DiaperType | null>(null);
   const [pooLevel, setPooLevel] = useState<number | null>(null);
   const meta = EVENT_META[type];
-  const valid = type === "milk" ? Number(amount) > 0 : type === "food" ? Boolean(note.trim()) : type === "poo" ? pooLevel != null : true;
+  const diaperNeedsPooLevel = diaperType === "poo" || diaperType === "both";
+  const valid = type === "milk"
+    ? Number(amount) > 0
+    : type === "food"
+      ? Boolean(note.trim())
+      : type === "diaper"
+        ? diaperType != null && (!diaperNeedsPooLevel || pooLevel != null)
+        : true;
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -838,16 +851,18 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
             occurred_at: fromDateTimeLocal(occurredAt),
             milk_type: type === "milk" ? milkType : null,
             amount_ml: type === "milk" ? Number(amount) : null,
-            poo_level: type === "poo" ? pooLevel : null,
+            diaper_type: type === "diaper" ? diaperType : null,
+            poo_level: type === "diaper" && diaperNeedsPooLevel ? pooLevel : null,
             note: note.trim() || null,
           });
         }}>
           {type === "milk" ? <>
             <label><span>How much did she drink? (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="120" required autoFocus /></label>
-            <label><span>Milk type</span><select value={milkType} onChange={(event) => setMilkType(event.target.value as MilkType)}><option value="formula">Formula</option><option value="breast_milk">Breast milk</option><option value="breastfeeding">Breastfeeding</option></select></label>
+            <label><span>Milk type</span><select value={milkType} onChange={(event) => setMilkType(event.target.value as MilkType)}><option value="formula">Formula</option><option value="cow_milk">Cow&apos;s milk</option></select></label>
           </> : null}
           {type === "food" ? <label><span>What did she eat?</span><textarea rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Banana and oatmeal" required autoFocus /></label> : null}
-          {type === "poo" ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
+          {type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
+          {type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
           {type !== "food" ? <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" /></label> : null}
           <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label>
           <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? "Saving…" : `Save ${meta.label.toLowerCase()}`}</button>
@@ -855,6 +870,15 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
       </section>
     </div>
   );
+}
+
+function DiaperTypePicker({ value, onChange }: { value: DiaperType | null; onChange: (value: DiaperType) => void }) {
+  const options: Array<{ value: DiaperType; label: string; emoji: string }> = [
+    { value: "wee", label: "Wee", emoji: "💧" },
+    { value: "poo", label: "Poo", emoji: "💩" },
+    { value: "both", label: "Both", emoji: "💧💩" },
+  ];
+  return <fieldset className="diaper-picker"><legend>What was in the diaper?</legend><div>{options.map((option) => <button className={value === option.value ? "selected" : ""} type="button" key={option.value} onClick={() => onChange(option.value)} aria-pressed={value === option.value}><span aria-hidden="true">{option.emoji}</span>{option.label}</button>)}</div></fieldset>;
 }
 
 function PooLevelPicker({ value, onChange }: { value: number | null; onChange: (value: number) => void }) {
@@ -866,9 +890,17 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
   const [milkType, setMilkType] = useState<MilkType | "">(event.milk_type ?? "");
   const [amount, setAmount] = useState(event.amount_ml?.toString() ?? "");
   const [note, setNote] = useState(event.note ?? "");
+  const [diaperType, setDiaperType] = useState<DiaperType | null>(event.diaper_type ?? null);
   const [pooLevel, setPooLevel] = useState<number | null>(event.poo_level ?? null);
   const meta = EVENT_META[event.event_type];
-  const valid = event.event_type === "milk" ? Number(amount) > 0 : event.event_type === "food" ? Boolean(note.trim()) : event.event_type === "poo" ? pooLevel != null : true;
+  const diaperNeedsPooLevel = diaperType === "poo" || diaperType === "both";
+  const valid = event.event_type === "milk"
+    ? Number(amount) > 0
+    : event.event_type === "food"
+      ? Boolean(note.trim())
+      : event.event_type === "diaper"
+        ? diaperType != null && (!diaperNeedsPooLevel || pooLevel != null)
+        : true;
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
@@ -882,16 +914,18 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
             occurred_at: fromDateTimeLocal(occurredAt),
             milk_type: event.event_type === "milk" ? milkType || null : null,
             amount_ml: event.event_type === "milk" && amount ? Number(amount) : null,
-            poo_level: event.event_type === "poo" ? pooLevel : null,
+            diaper_type: event.event_type === "diaper" ? diaperType : null,
+            poo_level: event.event_type === "diaper" && diaperNeedsPooLevel ? pooLevel : null,
             note: note.trim() || null,
           });
         }}>
           <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(changeEvent) => setOccurredAt(changeEvent.target.value)} required /></label>
           {event.event_type === "milk" ? <>
-            <label><span>Milk type</span><select value={milkType} onChange={(changeEvent) => setMilkType(changeEvent.target.value as MilkType | "")}><option value="">Not specified</option><option value="formula">Formula</option><option value="breast_milk">Breast milk</option><option value="breastfeeding">Breastfeeding</option></select></label>
+            <label><span>Milk type</span><select value={milkType} onChange={(changeEvent) => setMilkType(changeEvent.target.value as MilkType | "")}><option value="">Not specified</option><option value="formula">Formula</option><option value="cow_milk">Cow&apos;s milk</option></select></label>
             <label><span>Amount (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(changeEvent) => setAmount(changeEvent.target.value)} placeholder="120" required /></label>
           </> : null}
-          {event.event_type === "poo" ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
+          {event.event_type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
+          {event.event_type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
           <label><span>{event.event_type === "food" ? "What did she eat?" : "Note"}</span><textarea rows={3} maxLength={1000} value={note} onChange={(changeEvent) => setNote(changeEvent.target.value)} placeholder={event.event_type === "food" ? "Banana and oatmeal" : "Optional note"} required={event.event_type === "food"} /></label>
           <button className="primary-button" type="submit" disabled={busy || !valid}>Save changes</button>
           <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete record</button>
@@ -905,7 +939,7 @@ function SummaryCounts({ events }: { events: BabyEvent[] }) {
   const counts = events.reduce<Record<EventType, number>>((result, event) => {
     result[event.event_type] += 1;
     return result;
-  }, { milk: 0, food: 0, poo: 0, wee: 0 });
+  }, { milk: 0, food: 0, diaper: 0, shower: 0 });
   return <div className="summary-strip">{(Object.keys(EVENT_META) as EventType[]).map((type) => <div key={type}><span>{EVENT_META[type].emoji}</span><strong>{counts[type]}</strong><small>{EVENT_META[type].label}</small></div>)}</div>;
 }
 
@@ -913,7 +947,7 @@ function EventList({ events, onEdit, onDelete, empty }: { events: BabyEvent[]; o
   if (!events.length) return <EmptyState text={empty} />;
   return <div className="event-list">{events.map((event) => {
     const meta = EVENT_META[event.event_type];
-    const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? event.milk_type.replace("_", " ") : null, event.poo_level ? `Level ${event.poo_level}/5` : null, event.note].filter(Boolean).join(" · ");
+    const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? milkTypeLabel(event.milk_type) : null, event.diaper_type ? diaperTypeLabel(event.diaper_type) : null, event.poo_level ? `Level ${event.poo_level}/5` : null, event.note].filter(Boolean).join(" · ");
     return <div className="event-row" key={event.id}><button className="event-main" type="button" onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{meta.label}</strong><small>{details || "Tap to add details"}</small></span><time>{formatTime(event.occurred_at)}</time><span className="chevron">›</span></button><button className="quick-delete" type="button" aria-label={`Delete ${meta.label} record at ${formatTime(event.occurred_at)}`} onClick={() => { if (window.confirm(`Delete this ${meta.label.toLowerCase()} record?`)) void onDelete(event.id); }}>Delete</button></div>;
   })}</div>;
 }
@@ -945,6 +979,18 @@ function LoadingScreen({ label = "Loading her records…" }: { label?: string })
 
 function sortNewest(a: BabyEvent, b: BabyEvent) {
   return Date.parse(b.occurred_at) - Date.parse(a.occurred_at);
+}
+
+function milkTypeLabel(type: MilkType) {
+  if (type === "cow_milk") return "Cow's milk";
+  if (type === "formula") return "Formula";
+  if (type === "breast_milk") return "Breast milk";
+  return "Breastfeeding";
+}
+
+function diaperTypeLabel(type: DiaperType) {
+  if (type === "both") return "Poo + wee";
+  return type === "poo" ? "Poo" : "Wee";
 }
 
 function sortMeasurements(a: Measurement, b: Measurement) {

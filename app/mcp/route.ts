@@ -6,7 +6,7 @@ import type { BabyEvent, BabyProfile, EventType, Measurement } from "@/src/lib/t
 export const runtime = "nodejs";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
-const eventTypeSchema = z.enum(["milk", "food", "poo", "wee"]);
+const eventTypeSchema = z.enum(["milk", "food", "diaper", "shower"]);
 
 const handler = createMcpHandler((server) => {
   server.registerTool(
@@ -32,7 +32,7 @@ const handler = createMcpHandler((server) => {
     "get_latest_event",
     {
       title: "Get latest baby event",
-      description: "Find the most recent milk, food, poo, or wee record. Use for questions such as 'When was her last milk?'.",
+      description: "Find the most recent milk, food, diaper, or shower record. Use for questions such as 'When was her last milk?'.",
       inputSchema: z.object({ event_type: eventTypeSchema }).strict(),
       annotations: readOnlyAnnotations,
     },
@@ -40,7 +40,7 @@ const handler = createMcpHandler((server) => {
       const profile = await getProfile(supabase);
       const { data, error } = await supabase
         .from("events")
-        .select("event_type, occurred_at, milk_type, amount_ml, poo_level, note")
+        .select("event_type, occurred_at, milk_type, amount_ml, diaper_type, poo_level, note")
         .eq("baby_id", profile.id)
         .eq("event_type", event_type)
         .order("occurred_at", { ascending: false })
@@ -71,7 +71,7 @@ const handler = createMcpHandler((server) => {
     "get_events",
     {
       title: "Get baby records",
-      description: "Read detailed feeding and diaper records within a date range of up to 90 days, including milk volume, food, and poo level. Optionally filter by event types.",
+      description: "Read detailed feeding, diaper, and shower records within a date range of up to 90 days, including milk volume, food, diaper contents, and poo level. Optionally filter by event types.",
       inputSchema: z.object({
         start_date: dateSchema,
         end_date: dateSchema,
@@ -248,6 +248,7 @@ function publicEvent(event: BabyEvent) {
     occurred_at: event.occurred_at,
     milk_type: event.milk_type,
     amount_ml: event.amount_ml,
+    diaper_type: event.diaper_type,
     poo_level: event.poo_level,
     note: event.note,
   };
@@ -265,7 +266,7 @@ function summarize(profile: BabyProfile, date: string, events: BabyEvent[]) {
 }
 
 function countEvents(events: BabyEvent[]) {
-  const counts: Record<EventType, number> = { milk: 0, food: 0, poo: 0, wee: 0 };
+  const counts: Record<EventType, number> = { milk: 0, food: 0, diaper: 0, shower: 0 };
   for (const event of events) counts[event.event_type] += 1;
   return counts;
 }
