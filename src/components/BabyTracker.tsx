@@ -1,7 +1,7 @@
 "use client";
 
-import type { Session } from "@supabase/supabase-js";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { RealtimeChannel, Session } from "@supabase/supabase-js";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ageLabel,
   dateKey,
@@ -13,6 +13,7 @@ import {
   shiftDate,
   toDateTimeLocal,
 } from "@/src/lib/date";
+import { unlockHousehold } from "@/src/lib/household-auth";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-browser";
 import type {
   BabyEvent,
@@ -69,6 +70,7 @@ function makeDemoEvents(): BabyEvent[] {
       occurred_at: stamp,
       milk_type: event_type === "milk" ? "formula" : null,
       amount_ml,
+      poo_level: event_type === "poo" ? 3 : null,
       note,
       created_at: stamp,
       updated_at: stamp,
@@ -110,7 +112,17 @@ export function BabyTracker() {
   const [tab, setTab] = useState<Tab>("today");
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [editingEvent, setEditingEvent] = useState<BabyEvent | null>(null);
+  const [quickEventType, setQuickEventType] = useState<EventType | null>(null);
   const [toast, setToast] = useState<{ event: BabyEvent; message: string } | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "offline">("connecting");
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const profileId = profile?.id;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -235,6 +247,74 @@ export function BabyTracker() {
     );
   }, [configured, events, loading, measurements, profile]);
 
+  useEffect(() => {
+    if (!configured || !supabase || !session || !profileId) return;
+    const channel = supabase
+      .channel(`harper-records:${profileId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "events", filter: `baby_id=eq.${profileId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Pick<BabyEvent, "id">;
+            setEvents((current) => current.filter((item) => item.id !== deleted.id));
+            return;
+          }
+          const changed = payload.new as BabyEvent;
+          setEvents((current) => upsertById(current, changed, sortNewest));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "events" },
+        (payload) => {
+          const deleted = payload.old as Pick<BabyEvent, "id">;
+          setEvents((current) => current.filter((item) => item.id !== deleted.id));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "measurements", filter: `baby_id=eq.${profileId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Pick<Measurement, "id">;
+            setMeasurements((current) => current.filter((item) => item.id !== deleted.id));
+            return;
+          }
+          const changed = payload.new as Measurement;
+          setMeasurements((current) => upsertById(current, changed, sortMeasurements));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "measurements" },
+        (payload) => {
+          const deleted = payload.old as Pick<Measurement, "id">;
+          setMeasurements((current) => current.filter((item) => item.id !== deleted.id));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "babies", filter: `id=eq.${profileId}` },
+        (payload) => setProfile(payload.new as BabyProfile),
+      )
+      .on("broadcast", { event: "event_deleted" }, ({ payload }) => {
+        const id = typeof payload?.id === "string" ? payload.id : null;
+        if (id) setEvents((current) => current.filter((item) => item.id !== id));
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setRealtimeStatus("connected");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeStatus("offline");
+        else setRealtimeStatus("connecting");
+      });
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      if (realtimeChannelRef.current === channel) realtimeChannelRef.current = null;
+      void supabase.removeChannel(channel);
+    };
+  }, [configured, profileId, session, supabase]);
+
   async function addEvent(draft: EventDraft): Promise<BabyEvent | null> {
     if (!profile) return null;
     setBusy(true);
@@ -248,6 +328,7 @@ export function BabyTracker() {
       occurred_at: draft.occurred_at,
       milk_type: draft.event_type === "milk" ? draft.milk_type ?? null : null,
       amount_ml: draft.event_type === "milk" ? draft.amount_ml ?? null : null,
+      poo_level: draft.event_type === "poo" ? draft.poo_level ?? null : null,
       note: draft.note?.trim() || null,
       created_at: stamp,
       updated_at: stamp,
@@ -269,6 +350,7 @@ export function BabyTracker() {
         occurred_at: localEvent.occurred_at,
         milk_type: localEvent.milk_type,
         amount_ml: localEvent.amount_ml,
+        poo_level: localEvent.poo_level,
         note: localEvent.note,
       })
       .select("*")
@@ -287,10 +369,21 @@ export function BabyTracker() {
 
   async function quickAdd(type: EventType) {
     if (busy) return;
+    if (type !== "wee") {
+      setQuickEventType(type);
+      return;
+    }
     const saved = await addEvent({ event_type: type, occurred_at: new Date().toISOString() });
     if (saved) {
       setToast({ event: saved, message: `${EVENT_META[type].label} saved at ${formatTime(saved.occurred_at)}` });
     }
+  }
+
+  async function saveQuickEvent(draft: EventDraft) {
+    const saved = await addEvent(draft);
+    if (!saved) return;
+    setQuickEventType(null);
+    setToast({ event: saved, message: `${EVENT_META[saved.event_type].label} saved at ${formatTime(saved.occurred_at)}` });
   }
 
   async function updateEvent(event: BabyEvent) {
@@ -308,6 +401,7 @@ export function BabyTracker() {
         occurred_at: event.occurred_at,
         milk_type: event.event_type === "milk" ? event.milk_type : null,
         amount_ml: event.event_type === "milk" ? event.amount_ml : null,
+        poo_level: event.event_type === "poo" ? event.poo_level : null,
         note: event.note?.trim() || null,
       })
       .eq("id", event.id)
@@ -329,6 +423,7 @@ export function BabyTracker() {
         setBusy(false);
         return;
       }
+      void realtimeChannelRef.current?.send({ type: "broadcast", event: "event_deleted", payload: { id } });
     }
     setEvents((current) => current.filter((item) => item.id !== id));
     setToast(null);
@@ -391,7 +486,7 @@ export function BabyTracker() {
   }
 
   if (!authChecked) return <LoadingScreen />;
-  if (configured && !session) return <LoginScreen />;
+  if (configured && !session) return <PinScreen />;
   if (loading) return <LoadingScreen />;
   if (!profile) return <LoadingScreen label="Preparing her profile…" />;
 
@@ -408,10 +503,11 @@ export function BabyTracker() {
           <p className="eyebrow">Baby record</p>
           <h1>{profile.name}</h1>
           <p className="baby-age">Girl · {ageLabel(profile.date_of_birth)}</p>
+          <time className="current-time" dateTime={now.toISOString()}>{formatCurrentDateTime(now)}</time>
         </div>
-        <div className={`status-pill ${configured ? "live" : "demo"}`}>
+        <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
           <span className="status-dot" />
-          {configured ? "Live" : "Demo"}
+          {realtimeStatus === "connected" ? "Live" : realtimeStatus === "connecting" ? "Syncing" : "Offline"}
         </div>
       </header>
 
@@ -431,6 +527,7 @@ export function BabyTracker() {
             busy={busy}
             onQuickAdd={quickAdd}
             onEdit={setEditingEvent}
+            onDelete={deleteEvent}
           />
         ) : null}
         {tab === "history" ? (
@@ -439,6 +536,7 @@ export function BabyTracker() {
             events={selectedEvents}
             onDateChange={setSelectedDate}
             onEdit={setEditingEvent}
+            onDelete={deleteEvent}
           />
         ) : null}
         {tab === "growth" ? (
@@ -448,7 +546,6 @@ export function BabyTracker() {
           <SettingsView
             profile={profile}
             configured={configured}
-            email={session?.user.email ?? null}
             busy={busy}
             onSave={saveProfile}
             onSignOut={configured && supabase ? () => void supabase.auth.signOut({ scope: "local" }) : undefined}
@@ -473,6 +570,15 @@ export function BabyTracker() {
         />
       ) : null}
 
+      {quickEventType ? (
+        <QuickEventEditor
+          type={quickEventType}
+          busy={busy}
+          onClose={() => setQuickEventType(null)}
+          onSave={saveQuickEvent}
+        />
+      ) : null}
+
       {toast ? (
         <div className="toast" role="status">
           <div><strong>Saved</strong><span>{toast.message}</span></div>
@@ -492,6 +598,7 @@ function TodayView({
   busy,
   onQuickAdd,
   onEdit,
+  onDelete,
 }: {
   events: BabyEvent[];
   latestMilk?: BabyEvent;
@@ -499,6 +606,7 @@ function TodayView({
   busy: boolean;
   onQuickAdd: (type: EventType) => void;
   onEdit: (event: BabyEvent) => void;
+  onDelete: (id: string) => Promise<void>;
 }) {
   return (
     <>
@@ -508,7 +616,7 @@ function TodayView({
       </section>
 
       <section>
-        <div className="section-title"><div><p className="eyebrow">Quick record</p><h2>What happened?</h2></div><span>Tap once to save now</span></div>
+        <div className="section-title"><div><p className="eyebrow">Quick record</p><h2>What happened?</h2></div><span>Add the important details</span></div>
         <div className="quick-grid">
           {(Object.keys(EVENT_META) as EventType[]).map((type) => {
             const meta = EVENT_META[type];
@@ -522,7 +630,7 @@ function TodayView({
               >
                 <span className="quick-emoji" aria-hidden="true">{meta.emoji}</span>
                 <strong>{meta.label}</strong>
-                <small>Record now</small>
+                <small>{type === "wee" ? "Record now" : "Add details"}</small>
               </button>
             );
           })}
@@ -532,7 +640,7 @@ function TodayView({
       <section className="timeline-section">
         <div className="section-title"><div><p className="eyebrow">Today</p><h2>{events.length} records</h2></div></div>
         <SummaryCounts events={events} />
-        <EventList events={events} onEdit={onEdit} empty="Nothing recorded today yet." />
+        <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty="Nothing recorded today yet." />
       </section>
     </>
   );
@@ -543,11 +651,13 @@ function HistoryView({
   events,
   onDateChange,
   onEdit,
+  onDelete,
 }: {
   selectedDate: string;
   events: BabyEvent[];
   onDateChange: (date: string) => void;
   onEdit: (event: BabyEvent) => void;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const today = dateKey(new Date());
   return (
@@ -562,58 +672,66 @@ function HistoryView({
         <button type="button" disabled={selectedDate >= today} onClick={() => onDateChange(shiftDate(selectedDate, 1))} aria-label="Next day">›</button>
       </div>
       <SummaryCounts events={events} />
-      <EventList events={events} onEdit={onEdit} empty="No records for this day." />
+      <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty="No records for this day." />
     </section>
   );
 }
 
 function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]; busy: boolean; onAdd: (draft: MeasurementDraft) => Promise<void> }) {
-  const [expanded, setExpanded] = useState(false);
+  const [measurementType, setMeasurementType] = useState<"weight" | "height" | null>(null);
   const [date, setDate] = useState(() => toDateTimeLocal());
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [note, setNote] = useState("");
   const newestFirst = [...measurements].sort(sortMeasurements);
-  const newest = newestFirst[0];
-  const previous = newestFirst[1];
-  const chronological = [...newestFirst].reverse();
+  const weightRows = newestFirst.filter((item) => item.weight_kg != null);
+  const heightRows = newestFirst.filter((item) => item.height_cm != null);
+  const chronologicalWeights = [...weightRows].reverse();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const heightValue = height ? Number(height) : null;
-    const weightValue = weight ? Number(weight) : null;
-    if (heightValue === null && weightValue === null) return;
+    if (!measurementType) return;
+    const heightValue = measurementType === "height" && height ? Number(height) : null;
+    const weightValue = measurementType === "weight" && weight ? Number(weight) : null;
+    if (heightValue == null && weightValue == null) return;
     await onAdd({ measured_at: fromDateTimeLocal(date), height_cm: heightValue, weight_kg: weightValue, note });
     setHeight("");
     setWeight("");
     setNote("");
     setDate(toDateTimeLocal());
-    setExpanded(false);
+    setMeasurementType(null);
   }
 
   return (
     <section>
-      <div className="section-title"><div><p className="eyebrow">Growth</p><h2>Height & weight</h2></div><button className="small-action" type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? "Cancel" : "+ Add"}</button></div>
+      <div className="section-title">
+        <div><p className="eyebrow">Growth</p><h2>Height & weight</h2></div>
+        <div className="growth-actions">
+          <button className="small-action" type="button" onClick={() => setMeasurementType("weight")}>+ Weight</button>
+          <button className="small-action" type="button" onClick={() => setMeasurementType("height")}>+ Height</button>
+        </div>
+      </div>
 
-      {expanded ? (
+      {measurementType ? (
         <form className="panel form-grid" onSubmit={submit}>
+          <div className="form-heading full-field"><strong>Add {measurementType}</strong><button type="button" onClick={() => setMeasurementType(null)}>Cancel</button></div>
           <label className="full-field"><span>Date and time</span><input type="datetime-local" value={date} max={toDateTimeLocal()} onChange={(event) => setDate(event.target.value)} required /></label>
-          <label><span>Weight (kg)</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.01" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.20" /></label>
-          <label><span>Height (cm)</span><input inputMode="decimal" type="number" min="20" max="200" step="0.1" value={height} onChange={(event) => setHeight(event.target.value)} placeholder="70.1" /></label>
+          {measurementType === "weight" ? <label className="full-field"><span>Weight (kg)</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.01" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.20" required autoFocus /></label> : null}
+          {measurementType === "height" ? <label className="full-field"><span>Height (cm)</span><input inputMode="decimal" type="number" min="20" max="200" step="0.1" value={height} onChange={(event) => setHeight(event.target.value)} placeholder="70.1" required autoFocus /></label> : null}
           <label className="full-field"><span>Note (optional)</span><input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder="Measured at home" /></label>
-          <button className="primary-button full-field" type="submit" disabled={busy || (!height && !weight)}>Save measurement</button>
+          <button className="primary-button full-field" type="submit" disabled={busy || (measurementType === "height" ? !height : !weight)}>Save {measurementType}</button>
         </form>
       ) : null}
 
       <div className="growth-cards">
-        <MetricCard label="Latest weight" value={newest?.weight_kg != null ? `${newest.weight_kg.toFixed(2)} kg` : "—"} change={metricChange(newest?.weight_kg, previous?.weight_kg, "kg", 2)} />
-        <MetricCard label="Latest height" value={newest?.height_cm != null ? `${newest.height_cm.toFixed(1)} cm` : "—"} change={metricChange(newest?.height_cm, previous?.height_cm, "cm", 1)} />
+        <MetricCard label="Latest weight" value={weightRows[0]?.weight_kg != null ? `${weightRows[0].weight_kg.toFixed(2)} kg` : "—"} change={metricChange(weightRows[0]?.weight_kg, weightRows[1]?.weight_kg, "kg", 2)} />
+        <MetricCard label="Latest height" value={heightRows[0]?.height_cm != null ? `${heightRows[0].height_cm.toFixed(1)} cm` : "—"} change={metricChange(heightRows[0]?.height_cm, heightRows[1]?.height_cm, "cm", 1)} />
       </div>
 
-      {measurements.length > 1 ? (
+      {weightRows.length > 1 ? (
         <div className="panel chart-panel">
           <div><p className="eyebrow">Trend</p><h3>Weight</h3></div>
-          <Sparkline values={chronological.map((item) => item.weight_kg).filter((value): value is number => value != null)} />
+          <Sparkline values={chronologicalWeights.map((item) => item.weight_kg).filter((value): value is number => value != null)} />
         </div>
       ) : null}
 
@@ -635,14 +753,12 @@ function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]
 function SettingsView({
   profile,
   configured,
-  email,
   busy,
   onSave,
   onSignOut,
 }: {
   profile: BabyProfile;
   configured: boolean;
-  email: string | null;
   busy: boolean;
   onSave: (profile: BabyProfile) => Promise<void>;
   onSignOut?: () => void;
@@ -664,17 +780,15 @@ function SettingsView({
       </div>
 
       {!configured ? <div className="setup-note"><strong>Demo mode</strong><p>Your changes are stored only in this browser. Add the Supabase values from <code>.env.example</code> to enable private cloud storage.</p></div> : null}
-      {email ? <p className="account-line">Signed in as {email}</p> : null}
-      {onSignOut ? <button className="secondary-button full-width" type="button" onClick={onSignOut}>Sign out on this device</button> : null}
+      {configured ? <p className="account-line">Household PIN access is active on this device.</p> : null}
+      {onSignOut ? <button className="secondary-button full-width" type="button" onClick={onSignOut}>Lock this device</button> : null}
     </section>
   );
 }
 
-function LoginScreen() {
+function PinScreen() {
   const supabase = getSupabaseBrowserClient();
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -683,38 +797,68 @@ function LoginScreen() {
     if (!supabase) return;
     setBusy(true);
     setMessage(null);
-    if (mode === "sign-up") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (error) setMessage(error.message);
-      else if (!data.session) setMessage("Check your email, then return here to sign in.");
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage(error.message);
-    }
+    setMessage(await unlockHousehold(supabase, pin));
     setBusy(false);
   }
 
   return (
     <main className="login-shell">
       <div className="login-icon">👶🏻</div>
-      <p className="eyebrow">Private baby tracker</p>
-      <h1>{mode === "sign-up" ? "Create your account" : "Welcome back"}</h1>
-      <p>{mode === "sign-up" ? "Create the private login for Harper&apos;s records." : "Sign in to see and record Harper&apos;s day."}</p>
+      <p className="eyebrow">Harper&apos;s private tracker</p>
+      <h1>Enter household PIN</h1>
+      <p>Use the same PIN on each family phone. No account or email is needed.</p>
       <form className="login-form" onSubmit={submit}>
-        <label><span>Email</span><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-        <label><span>Password</span><input type="password" autoComplete={mode === "sign-up" ? "new-password" : "current-password"} minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+        <label><span>4-digit PIN</span><input className="pin-input" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="current-password" maxLength={4} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required autoFocus /></label>
         {message ? <div className="form-error" role="alert">{message}</div> : null}
-        <button className="primary-button" type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "sign-up" ? "Create private account" : "Sign in"}</button>
-        <button className="login-switch" type="button" onClick={() => { setMode((current) => current === "sign-in" ? "sign-up" : "sign-in"); setMessage(null); }}>
-          {mode === "sign-up" ? "Already have an account? Sign in" : "First time? Create private account"}
-        </button>
+        <button className="primary-button" type="submit" disabled={busy || pin.length !== 4}>{busy ? "Opening…" : "Open Harper's records"}</button>
       </form>
     </main>
   );
+}
+
+function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; busy: boolean; onClose: () => void; onSave: (draft: EventDraft) => Promise<void> }) {
+  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocal());
+  const [milkType, setMilkType] = useState<MilkType>("formula");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [pooLevel, setPooLevel] = useState<number | null>(null);
+  const meta = EVENT_META[type];
+  const valid = type === "milk" ? Number(amount) > 0 : type === "food" ? Boolean(note.trim()) : type === "poo" ? pooLevel != null : true;
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="quick-event-title">
+        <div className="sheet-handle" />
+        <div className="sheet-title"><div className={`event-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">New record</p><h2 id="quick-event-title">{meta.label}</h2></div><button type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (!valid) return;
+          void onSave({
+            event_type: type,
+            occurred_at: fromDateTimeLocal(occurredAt),
+            milk_type: type === "milk" ? milkType : null,
+            amount_ml: type === "milk" ? Number(amount) : null,
+            poo_level: type === "poo" ? pooLevel : null,
+            note: note.trim() || null,
+          });
+        }}>
+          {type === "milk" ? <>
+            <label><span>How much did she drink? (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="120" required autoFocus /></label>
+            <label><span>Milk type</span><select value={milkType} onChange={(event) => setMilkType(event.target.value as MilkType)}><option value="formula">Formula</option><option value="breast_milk">Breast milk</option><option value="breastfeeding">Breastfeeding</option></select></label>
+          </> : null}
+          {type === "food" ? <label><span>What did she eat?</span><textarea rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Banana and oatmeal" required autoFocus /></label> : null}
+          {type === "poo" ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
+          {type !== "food" ? <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" /></label> : null}
+          <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label>
+          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? "Saving…" : `Save ${meta.label.toLowerCase()}`}</button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function PooLevelPicker({ value, onChange }: { value: number | null; onChange: (value: number) => void }) {
+  return <fieldset className="poo-picker"><legend>Poo level · 1 to 5 (5 is most)</legend><div>{[1, 2, 3, 4, 5].map((level) => <button className={value === level ? "selected" : ""} type="button" key={level} onClick={() => onChange(level)} aria-pressed={value === level}>{level}</button>)}</div></fieldset>;
 }
 
 function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEvent; busy: boolean; onClose: () => void; onSave: (event: BabyEvent) => Promise<void>; onDelete: () => void }) {
@@ -722,7 +866,9 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
   const [milkType, setMilkType] = useState<MilkType | "">(event.milk_type ?? "");
   const [amount, setAmount] = useState(event.amount_ml?.toString() ?? "");
   const [note, setNote] = useState(event.note ?? "");
+  const [pooLevel, setPooLevel] = useState<number | null>(event.poo_level ?? null);
   const meta = EVENT_META[event.event_type];
+  const valid = event.event_type === "milk" ? Number(amount) > 0 : event.event_type === "food" ? Boolean(note.trim()) : event.event_type === "poo" ? pooLevel != null : true;
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
@@ -736,16 +882,18 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
             occurred_at: fromDateTimeLocal(occurredAt),
             milk_type: event.event_type === "milk" ? milkType || null : null,
             amount_ml: event.event_type === "milk" && amount ? Number(amount) : null,
+            poo_level: event.event_type === "poo" ? pooLevel : null,
             note: note.trim() || null,
           });
         }}>
           <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(changeEvent) => setOccurredAt(changeEvent.target.value)} required /></label>
           {event.event_type === "milk" ? <>
             <label><span>Milk type</span><select value={milkType} onChange={(changeEvent) => setMilkType(changeEvent.target.value as MilkType | "")}><option value="">Not specified</option><option value="formula">Formula</option><option value="breast_milk">Breast milk</option><option value="breastfeeding">Breastfeeding</option></select></label>
-            <label><span>Amount (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(changeEvent) => setAmount(changeEvent.target.value)} placeholder="120" /></label>
+            <label><span>Amount (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(changeEvent) => setAmount(changeEvent.target.value)} placeholder="120" required /></label>
           </> : null}
-          <label><span>Note</span><textarea rows={3} maxLength={1000} value={note} onChange={(changeEvent) => setNote(changeEvent.target.value)} placeholder={event.event_type === "food" ? "What did she eat?" : "Optional note"} /></label>
-          <button className="primary-button" type="submit" disabled={busy}>Save changes</button>
+          {event.event_type === "poo" ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
+          <label><span>{event.event_type === "food" ? "What did she eat?" : "Note"}</span><textarea rows={3} maxLength={1000} value={note} onChange={(changeEvent) => setNote(changeEvent.target.value)} placeholder={event.event_type === "food" ? "Banana and oatmeal" : "Optional note"} required={event.event_type === "food"} /></label>
+          <button className="primary-button" type="submit" disabled={busy || !valid}>Save changes</button>
           <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete record</button>
         </form>
       </section>
@@ -761,12 +909,12 @@ function SummaryCounts({ events }: { events: BabyEvent[] }) {
   return <div className="summary-strip">{(Object.keys(EVENT_META) as EventType[]).map((type) => <div key={type}><span>{EVENT_META[type].emoji}</span><strong>{counts[type]}</strong><small>{EVENT_META[type].label}</small></div>)}</div>;
 }
 
-function EventList({ events, onEdit, empty }: { events: BabyEvent[]; onEdit: (event: BabyEvent) => void; empty: string }) {
+function EventList({ events, onEdit, onDelete, empty }: { events: BabyEvent[]; onEdit: (event: BabyEvent) => void; onDelete: (id: string) => Promise<void>; empty: string }) {
   if (!events.length) return <EmptyState text={empty} />;
   return <div className="event-list">{events.map((event) => {
     const meta = EVENT_META[event.event_type];
-    const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? event.milk_type.replace("_", " ") : null, event.note].filter(Boolean).join(" · ");
-    return <button className="event-row" type="button" key={event.id} onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{meta.label}</strong><small>{details || "Tap to add details"}</small></span><time>{formatTime(event.occurred_at)}</time><span className="chevron">›</span></button>;
+    const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? event.milk_type.replace("_", " ") : null, event.poo_level ? `Level ${event.poo_level}/5` : null, event.note].filter(Boolean).join(" · ");
+    return <div className="event-row" key={event.id}><button className="event-main" type="button" onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{meta.label}</strong><small>{details || "Tap to add details"}</small></span><time>{formatTime(event.occurred_at)}</time><span className="chevron">›</span></button><button className="quick-delete" type="button" aria-label={`Delete ${meta.label} record at ${formatTime(event.occurred_at)}`} onClick={() => { if (window.confirm(`Delete this ${meta.label.toLowerCase()} record?`)) void onDelete(event.id); }}>Delete</button></div>;
   })}</div>;
 }
 
@@ -801,6 +949,22 @@ function sortNewest(a: BabyEvent, b: BabyEvent) {
 
 function sortMeasurements(a: Measurement, b: Measurement) {
   return Date.parse(b.measured_at) - Date.parse(a.measured_at);
+}
+
+function upsertById<T extends { id: string }>(current: T[], changed: T, sort: (a: T, b: T) => number) {
+  return [changed, ...current.filter((item) => item.id !== changed.id)].sort(sort);
+}
+
+function formatCurrentDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en-HK", {
+    timeZone: "Asia/Hong_Kong",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function metricChange(current: number | null | undefined, previous: number | null | undefined, unit: string, digits: number): string | null {

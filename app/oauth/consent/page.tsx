@@ -4,6 +4,7 @@ import type { OAuthAuthorizationDetails } from "@supabase/supabase-js";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/src/lib/supabase-browser";
+import { unlockHousehold } from "@/src/lib/household-auth";
 
 export default function OAuthConsentPage() {
   return <Suspense fallback={<main className="loading-screen"><p>Checking the request…</p></main>}><OAuthConsent /></Suspense>;
@@ -14,8 +15,7 @@ function OAuthConsent() {
   const authorizationId = useSearchParams().get("authorization_id");
   const [details, setDetails] = useState<OAuthAuthorizationDetails | null>(null);
   const [signedIn, setSignedIn] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,8 +56,8 @@ function OAuthConsent() {
     if (!supabase) return;
     setBusy(true);
     setError(null);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) setError(signInError.message);
+    const unlockError = await unlockHousehold(supabase, pin);
+    if (unlockError) setError(unlockError);
     setBusy(false);
   }
 
@@ -87,10 +87,9 @@ function OAuthConsent() {
 
         {!busy && !signedIn && !visibleError ? (
           <form className="login-form consent-login" onSubmit={signIn}>
-            <p>Sign in first to approve this connection.</p>
-            <label><span>Email</span><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-            <label><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-            <button className="primary-button" type="submit">Sign in</button>
+            <p>Enter the household PIN first to approve this connection.</p>
+            <label><span>4-digit PIN</span><input className="pin-input" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="current-password" maxLength={4} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required autoFocus /></label>
+            <button className="primary-button" type="submit" disabled={pin.length !== 4}>Continue</button>
           </form>
         ) : null}
 

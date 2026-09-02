@@ -22,6 +22,7 @@ export interface BabyEvent {
   occurred_at: string;
   milk_type: MilkType | null;
   amount_ml: number | null;
+  poo_level: number | null;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -44,6 +45,7 @@ export interface EventDraft {
   occurred_at: string;
   milk_type?: MilkType | null;
   amount_ml?: number | null;
+  poo_level?: number | null;
   note?: string | null;
 }
 

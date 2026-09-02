@@ -5,7 +5,7 @@ A private, iPhone-first baby care tracker for feeding, diaper, height, and weigh
 ## Stack
 
 - Next.js and TypeScript
-- Supabase Auth and Postgres
+- Supabase Auth, Realtime, Edge Functions, and Postgres
 - Supabase Row Level Security
 - Vercel hosting
 - `mcp-handler` for the authenticated `/mcp` endpoint
@@ -16,7 +16,7 @@ A private, iPhone-first baby care tracker for feeding, diaper, height, and weigh
 2. Install dependencies with `npm install`.
 3. Copy `.env.example` to `.env.local` and add the Supabase project URL and publishable key.
 4. Apply the SQL migration in `supabase/migrations` to the Supabase project.
-5. Create the private owner account in Supabase Authentication.
+5. Deploy the server-only `household-login` Edge Function and keep its PIN and generated household credentials out of the browser bundle.
 6. Start the app with `npm run dev`.
 
 Without Supabase environment variables, the app runs in clearly labelled demo mode and saves data only to the current browser.
@@ -28,11 +28,13 @@ The initial migration creates:
 - `babies`
 - `events`
 - `measurements`
+- `household_pin_attempts` for server-side PIN rate limiting
 - explicit Data API grants
 - owner-only RLS policies
 - read-only policies for OAuth sessions
+- Realtime publication for baby, event, and measurement changes
 
-The app creates Harper's profile as a girl born on 15 November 2025 in the `Asia/Hong_Kong` time zone.
+The app uses one private household identity behind a four-digit PIN, so family devices do not need separate accounts. The app creates Harper's profile as a girl born on 15 November 2025 in the `Asia/Hong_Kong` time zone.
 
 ## ChatGPT connection
 

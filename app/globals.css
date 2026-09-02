@@ -94,6 +94,15 @@ textarea:focus-visible {
   font-size: 0.9rem;
 }
 
+.current-time {
+  display: block;
+  margin-top: 6px;
+  color: var(--brand-dark);
+  font-size: 0.78rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -280,22 +289,45 @@ textarea:focus-visible {
 }
 
 .event-row {
-  display: grid;
-  grid-template-columns: 46px 1fr auto 12px;
+  display: flex;
   align-items: center;
-  gap: 11px;
   width: 100%;
   min-height: 72px;
-  padding: 11px 14px;
-  border: 0;
   border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+
+.event-row:last-child { border-bottom: 0; }
+
+.event-main {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+  min-height: 72px;
+  padding: 11px 8px 11px 14px;
+  border: 0;
   background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
-.event-row:last-child { border-bottom: 0; }
-.event-row:active { background: #fbf7f4; }
+.event-main:active { background: #fbf7f4; }
+
+.quick-delete {
+  min-width: 56px;
+  min-height: 44px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 12px;
+  color: #a6423a;
+  background: #fff0ee;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
 
 .event-icon {
   display: grid;
@@ -417,6 +449,16 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
+.growth-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.growth-actions .small-action {
+  min-width: auto;
+  padding: 0 9px;
+}
+
 .panel {
   margin-bottom: 16px;
   padding: 17px;
@@ -433,6 +475,20 @@ textarea:focus-visible {
 }
 
 .full-field { grid-column: 1 / -1; }
+
+.form-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-heading button {
+  min-height: 40px;
+  border: 0;
+  color: var(--brand-dark);
+  background: transparent;
+  font-weight: 800;
+}
 
 label span {
   display: block;
@@ -692,6 +748,41 @@ code {
   gap: 13px;
 }
 
+.poo-picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.poo-picker legend {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.poo-picker > div {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.poo-picker button {
+  min-height: 48px;
+  border: 1px solid #e0d3cc;
+  border-radius: 13px;
+  color: var(--ink);
+  background: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.poo-picker button.selected {
+  border-color: #6f9a79;
+  color: #315c3d;
+  background: #dcecdf;
+}
+
 .toast {
   position: fixed;
   z-index: 40;
@@ -775,6 +866,13 @@ code {
   background: var(--paper);
   box-shadow: var(--shadow);
   text-align: left;
+}
+
+.pin-input {
+  text-align: center;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: 0.5em;
 }
 
 .login-switch {

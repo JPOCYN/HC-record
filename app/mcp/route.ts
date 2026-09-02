@@ -40,7 +40,7 @@ const handler = createMcpHandler((server) => {
       const profile = await getProfile(supabase);
       const { data, error } = await supabase
         .from("events")
-        .select("event_type, occurred_at, milk_type, amount_ml, note")
+        .select("event_type, occurred_at, milk_type, amount_ml, poo_level, note")
         .eq("baby_id", profile.id)
         .eq("event_type", event_type)
         .order("occurred_at", { ascending: false })
@@ -71,7 +71,7 @@ const handler = createMcpHandler((server) => {
     "get_events",
     {
       title: "Get baby records",
-      description: "Read detailed feeding and diaper records within a date range of up to 90 days. Optionally filter by event types.",
+      description: "Read detailed feeding and diaper records within a date range of up to 90 days, including milk volume, food, and poo level. Optionally filter by event types.",
       inputSchema: z.object({
         start_date: dateSchema,
         end_date: dateSchema,
@@ -248,6 +248,7 @@ function publicEvent(event: BabyEvent) {
     occurred_at: event.occurred_at,
     milk_type: event.milk_type,
     amount_ml: event.amount_ml,
+    poo_level: event.poo_level,
     note: event.note,
   };
 }
