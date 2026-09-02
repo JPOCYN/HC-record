@@ -429,9 +429,14 @@ textarea:focus-visible {
 
 .date-switcher {
   display: grid;
-  grid-template-columns: 52px 1fr 52px;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
   gap: 8px;
   margin-bottom: 15px;
+}
+
+.date-switcher label {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .date-switcher button,
@@ -444,12 +449,21 @@ textarea:focus-visible {
 }
 
 .date-switcher button {
+  position: relative;
+  z-index: 1;
   font-size: 1.7rem;
   cursor: pointer;
 }
 
 .date-switcher button:disabled { opacity: 0.35; }
-.date-switcher input { padding: 0 14px; color: var(--ink); }
+.date-switcher input {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 14px;
+  color: var(--ink);
+}
 
 .small-action {
   min-width: 62px;

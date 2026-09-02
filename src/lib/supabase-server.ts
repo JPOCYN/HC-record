@@ -27,9 +27,6 @@ export async function verifySupabaseMcpToken(
 ): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
 
-  const approvedClientId = process.env.SUPABASE_MCP_CLIENT_ID;
-  if (!approvedClientId) return undefined;
-
   const { url, key } = env();
   const verifier = createClient(url, key, {
     auth: {
@@ -45,7 +42,13 @@ export async function verifySupabaseMcpToken(
   const subject = typeof claims.sub === "string" ? claims.sub : null;
   const clientId = typeof claims.client_id === "string" ? claims.client_id : null;
   const expiresAt = typeof claims.exp === "number" ? claims.exp : undefined;
-  if (!subject || clientId !== approvedClientId) return undefined;
+  if (!subject || !clientId) return undefined;
+
+  const approvedClientIds = (process.env.SUPABASE_MCP_CLIENT_ID ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (approvedClientIds.length > 0 && !approvedClientIds.includes(clientId)) return undefined;
 
   const scope = typeof claims.scope === "string" ? claims.scope.split(/\s+/).filter(Boolean) : [];
   return {

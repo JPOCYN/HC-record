@@ -38,17 +38,17 @@ The app uses one private household identity behind a four-digit PIN, so family d
 
 ## ChatGPT connection
 
-The MCP endpoint is deliberately fail-closed until OAuth is configured.
+The MCP endpoint accepts only valid Supabase OAuth access tokens. Ordinary household sessions are not accepted because OAuth tokens must include a `client_id` claim.
 
 1. Enable the Supabase OAuth 2.1 server.
 2. Configure the authorization path as `/oauth/consent`.
-3. Use asymmetric JWT signing keys in Supabase.
-4. Register the private ChatGPT client or complete the supported client-registration flow.
-5. Set `SUPABASE_MCP_CLIENT_ID` in Vercel to the resulting OAuth client ID.
-6. Set the Supabase Site URL to the production Vercel URL.
-7. Connect ChatGPT to `https://YOUR_DOMAIN/mcp`.
+3. Set the Supabase Site URL to the production Vercel URL.
+4. Enable dynamic client registration so ChatGPT can register its OAuth client automatically.
+5. Connect ChatGPT to `https://YOUR_DOMAIN/mcp` and approve the request with the household PIN.
 
-The MCP server verifies the Supabase token, checks the OAuth client ID, forwards the user token to Supabase, and therefore keeps RLS active. It never uses a Supabase secret/service key.
+For an additional client allowlist, set `SUPABASE_MCP_CLIENT_ID` in Vercel to one OAuth client ID or a comma-separated list. Leave it unset when using dynamic client registration.
+
+The MCP server verifies the Supabase token, requires an OAuth `client_id`, forwards the user token to Supabase, and therefore keeps RLS active. It never uses a Supabase secret/service key.
 
 Available read-only tools:
 
