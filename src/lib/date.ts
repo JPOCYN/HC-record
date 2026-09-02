@@ -77,6 +77,19 @@ export function formatScheduleTime(value: string | null, locale = "en-US", allDa
   }).format(new Date(2000, 0, 1, Number(hour), Number(minute)));
 }
 
+export function isScheduleReminderActive(
+  occurrenceDate: string,
+  eventTime: string | null,
+  now = new Date(),
+  graceMinutes = 15,
+): boolean {
+  if (!eventTime) return true;
+  const time = eventTime.slice(0, 8).padEnd(8, ":00");
+  const eventAt = new Date(`${occurrenceDate}T${time}+08:00`);
+  if (Number.isNaN(eventAt.getTime())) return true;
+  return now.getTime() <= eventAt.getTime() + graceMinutes * 60_000;
+}
+
 export function ageLabel(dateOfBirth: string, now = new Date(), language: "en" | "zh-Hant" = "en"): string {
   const birth = new Date(`${dateOfBirth}T00:00:00`);
   let months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();

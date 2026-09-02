@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, formatScheduleTime, formatTime, shiftDate, startOfWeek, weekDates } from "./date";
+import { ageLabel, formatScheduleTime, formatTime, isScheduleReminderActive, shiftDate, startOfWeek, weekDates } from "./date";
 
 describe("date helpers", () => {
   it("calculates the supplied baby age", () => {
@@ -27,5 +27,11 @@ describe("date helpers", () => {
   it("formats optional timetable times", () => {
     expect(formatScheduleTime("14:30:00")).toBe("2:30 PM");
     expect(formatScheduleTime(null)).toBe("All day");
+  });
+
+  it("keeps timed reminders for 15 minutes after their Hong Kong start time", () => {
+    expect(isScheduleReminderActive("2026-09-02", "15:00:00", new Date("2026-09-02T07:15:00Z"))).toBe(true);
+    expect(isScheduleReminderActive("2026-09-02", "15:00:00", new Date("2026-09-02T07:15:01Z"))).toBe(false);
+    expect(isScheduleReminderActive("2026-09-02", null, new Date("2026-09-02T23:59:00Z"))).toBe(true);
   });
 });

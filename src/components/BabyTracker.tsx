@@ -11,6 +11,7 @@ import {
   formatShortDate,
   formatTime,
   fromDateTimeLocal,
+  isScheduleReminderActive,
   shiftDate,
   startOfWeek,
   toDateTimeLocal,
@@ -141,14 +142,31 @@ function BabyTrackerApp() {
   const [addingScheduleDate, setAddingScheduleDate] = useState<string | null>(null);
   const [quickEventType, setQuickEventType] = useState<EventType | null>(null);
   const [toast, setToast] = useState<{ event: BabyEvent; message: string } | null>(null);
+  const [offlineNotice, setOfflineNotice] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [now, setNow] = useState(() => new Date());
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "offline">("connecting");
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
   const profileId = profile?.id;
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const updateConnection = () => {
+      const online = window.navigator.onLine;
+      setIsOnline(online);
+      if (online) setOfflineNotice(false);
+    };
+    updateConnection();
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+    };
   }, []);
 
   useEffect(() => {
@@ -384,7 +402,14 @@ function BabyTrackerApp() {
     };
   }, [configured, profileId, session, supabase]);
 
+  function requireOnline(): boolean {
+    if (!configured || isOnline) return true;
+    setOfflineNotice(true);
+    return false;
+  }
+
   async function addEvent(draft: EventDraft): Promise<BabyEvent | null> {
+    if (!requireOnline()) return null;
     if (!profile) return null;
     setBusy(true);
     setError(null);
@@ -440,6 +465,7 @@ function BabyTrackerApp() {
 
   async function quickAdd(type: EventType) {
     if (busy) return;
+    if (!requireOnline()) return;
     if (type !== "shower") {
       setQuickEventType(type);
       return;
@@ -458,6 +484,7 @@ function BabyTrackerApp() {
   }
 
   async function updateEvent(event: BabyEvent) {
+    if (!requireOnline()) return;
     setBusy(true);
     setError(null);
     if (!supabase || !session) {
@@ -486,6 +513,7 @@ function BabyTrackerApp() {
   }
 
   async function deleteEvent(id: string) {
+    if (!requireOnline()) return;
     setBusy(true);
     setError(null);
     if (supabase && session) {
@@ -504,6 +532,7 @@ function BabyTrackerApp() {
   }
 
   async function addMeasurement(draft: MeasurementDraft) {
+    if (!requireOnline()) return;
     if (!profile) return;
     setBusy(true);
     setError(null);
@@ -535,6 +564,7 @@ function BabyTrackerApp() {
   }
 
   async function addScheduleItem(draft: ScheduleDraft): Promise<boolean> {
+    if (!requireOnline()) return false;
     if (!profile) return false;
     setBusy(true);
     setError(null);
@@ -569,6 +599,7 @@ function BabyTrackerApp() {
   }
 
   async function updateScheduleItem(item: ScheduleItem): Promise<boolean> {
+    if (!requireOnline()) return false;
     setBusy(true);
     setError(null);
     if (!supabase || !session) {
@@ -596,6 +627,7 @@ function BabyTrackerApp() {
   }
 
   async function deleteScheduleItem(id: string): Promise<boolean> {
+    if (!requireOnline()) return false;
     setBusy(true);
     setError(null);
     if (supabase && session) {
@@ -614,6 +646,7 @@ function BabyTrackerApp() {
   }
 
   async function saveProfile(next: BabyProfile): Promise<boolean> {
+    if (!requireOnline()) return false;
     setBusy(true);
     setError(null);
     if (!supabase || !session) {
@@ -642,12 +675,19 @@ function BabyTrackerApp() {
   if (loading) return <LoadingScreen />;
   if (!profile) return <LoadingScreen label={t("preparingProfile")} />;
 
-  const today = dateKey(new Date());
+  const today = dateKey(now);
   const todayEvents = events.filter((event) => dateKey(event.occurred_at) === today);
   const selectedEvents = events.filter((event) => dateKey(event.occurred_at) === selectedDate);
   const latestMilk = events.find((event) => event.event_type === "milk");
   const latestFood = events.find((event) => event.event_type === "food");
-  const todaySchedule = scheduleItems.filter((item) => scheduleOccursOn(item, today));
+  const todaySchedule = scheduleItems.filter(
+    (item) => scheduleOccursOn(item, today) && isScheduleReminderActive(today, item.event_time, now),
+  );
+
+  function openScheduleEditor(date: string) {
+    if (!requireOnline()) return;
+    setAddingScheduleDate(date);
+  }
 
   return (
     <main className="app-shell">
@@ -658,10 +698,6 @@ function BabyTrackerApp() {
           <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}<span className="mobile-date"> · {formatCurrentDate(now, locale)}</span></p>
         </div>
         <div className="now-panel">
-          <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
-            <span className="status-dot" />
-            {realtimeStatus === "connected" ? t("live") : realtimeStatus === "connecting" ? t("syncing") : t("offline")}
-          </div>
           <div className="now-copy">
             <span>{formatCurrentDate(now, locale)}</span>
             <time dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
@@ -693,7 +729,7 @@ function BabyTrackerApp() {
           <WeekView
             items={scheduleItems}
             busy={busy}
-            onAdd={setAddingScheduleDate}
+            onAdd={openScheduleEditor}
             onEdit={setEditingScheduleItem}
           />
         ) : null}
@@ -714,6 +750,8 @@ function BabyTrackerApp() {
             profile={profile}
             configured={configured}
             busy={busy}
+            isOnline={isOnline}
+            realtimeStatus={realtimeStatus}
             onSave={saveProfile}
             onSignOut={configured && supabase ? () => void supabase.auth.signOut({ scope: "local" }) : undefined}
           />
@@ -779,6 +817,8 @@ function BabyTrackerApp() {
           <button className="toast-close" type="button" onClick={() => setToast(null)} aria-label={t("close")}>×</button>
         </div>
       ) : null}
+
+      {offlineNotice ? <OfflineNotice onClose={() => setOfflineNotice(false)} /> : null}
     </main>
   );
 }
@@ -1108,18 +1148,23 @@ function SettingsView({
   profile,
   configured,
   busy,
+  isOnline,
+  realtimeStatus,
   onSave,
   onSignOut,
 }: {
   profile: BabyProfile;
   configured: boolean;
   busy: boolean;
+  isOnline: boolean;
+  realtimeStatus: "connecting" | "connected" | "offline";
   onSave: (profile: BabyProfile) => Promise<boolean>;
   onSignOut?: () => void;
 }) {
   const { locale, t } = useI18n();
   const [draft, setDraft] = useState(profile);
   const [editing, setEditing] = useState(false);
+  const connectionState = !isOnline ? "offline" : realtimeStatus === "connected" ? "online" : "syncing";
 
   async function submitProfile(event: FormEvent) {
     event.preventDefault();
@@ -1129,6 +1174,10 @@ function SettingsView({
   return (
     <section>
       <div className="section-title"><div><p className="eyebrow">{t("settings")}</p><h2>{t("babyProfile")}</h2></div></div>
+      <div className="panel connection-setting">
+        <div className={`status-pill ${connectionState === "online" ? "live" : ""}`}><span className="status-dot" />{t(connectionState)}</div>
+        <div><strong>{t("connectionStatus")}</strong><span>{t(isOnline ? "onlineDescription" : "offlineDescription")}</span></div>
+      </div>
       <div className="panel language-setting"><LanguageSelect /></div>
       {editing ? (
         <form className="panel settings-form" onSubmit={(event) => void submitProfile(event)}>
@@ -1154,6 +1203,20 @@ function SettingsView({
       {configured ? <p className="account-line">{t("pinActive")}</p> : null}
       {onSignOut ? <button className="secondary-button full-width" type="button" onClick={onSignOut}>{t("lockDevice")}</button> : null}
     </section>
+  );
+}
+
+function OfflineNotice({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="offline-dialog" role="alertdialog" aria-modal="true" aria-labelledby="offline-dialog-title">
+        <div className="offline-dialog-icon" aria-hidden="true">☁︎</div>
+        <h2 id="offline-dialog-title">{t("internetRequired")}</h2>
+        <p>{t("internetRequiredDescription")}</p>
+        <button className="primary-button" type="button" onClick={onClose} autoFocus>{t("okay")}</button>
+      </section>
+    </div>
   );
 }
 

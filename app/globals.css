@@ -983,6 +983,20 @@ textarea {
   padding-bottom: 13px;
 }
 
+.connection-setting {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 12px;
+}
+
+.connection-setting .status-pill { margin: 0; }
+.connection-setting strong,
+.connection-setting > div > span { display: block; }
+.connection-setting strong { font-size: 0.82rem; }
+.connection-setting > div > span { margin-top: 4px; color: var(--muted); font-size: 0.7rem; line-height: 1.4; }
+
 .language-select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(150px, 0.7fr);
@@ -1113,6 +1127,45 @@ code {
   box-shadow: 0 -20px 70px rgba(48, 37, 33, 0.22);
   animation: sheet-in 180ms ease-out;
 }
+
+.offline-dialog {
+  width: min(420px, calc(100% - 28px));
+  margin-bottom: calc(14px + env(safe-area-inset-bottom));
+  padding: 26px 22px 22px;
+  border-radius: 26px;
+  background: var(--paper);
+  box-shadow: 0 20px 70px rgba(48, 37, 33, 0.24);
+  text-align: center;
+  animation: sheet-in 180ms ease-out;
+}
+
+.offline-dialog-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 13px;
+  place-items: center;
+  border-radius: 18px;
+  color: var(--brand-dark);
+  background: #f8e4dc;
+  font-size: 1.75rem;
+}
+
+.offline-dialog h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.55rem;
+  font-weight: 500;
+}
+
+.offline-dialog p {
+  margin: 10px 0 19px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.offline-dialog .primary-button { width: 100%; }
 
 @keyframes sheet-in {
   from { transform: translateY(30px); opacity: 0; }
@@ -1630,6 +1683,7 @@ code {
   .toast { top: 32px; bottom: auto; max-width: 700px; }
   .modal-backdrop { align-items: center; padding: 32px; }
   .bottom-sheet { width: min(620px, 100%); border-radius: 28px; }
+  .offline-dialog { margin-bottom: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
