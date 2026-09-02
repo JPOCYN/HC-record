@@ -38,7 +38,7 @@ type Tab = "today" | "week" | "history" | "growth" | "settings";
 const EVENT_META: Record<EventType, { emoji: string; labelKey: TranslationKey; color: string }> = {
   milk: { emoji: "🍼", labelKey: "milk", color: "peach" },
   food: { emoji: "🥣", labelKey: "food", color: "sun" },
-  diaper: { emoji: "🧷", labelKey: "diaper", color: "sage" },
+  diaper: { emoji: "🩲", labelKey: "diaper", color: "sage" },
   shower: { emoji: "🚿", labelKey: "shower", color: "sky" },
 };
 
@@ -655,7 +655,7 @@ function BabyTrackerApp() {
         <div className="hero-profile">
           <p className="eyebrow">{t("babyRecord")}</p>
           <h1>{profile.name}</h1>
-          <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}</p>
+          <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}<span className="mobile-date"> · {formatCurrentDate(now, locale)}</span></p>
         </div>
         <div className="now-panel">
           <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
@@ -806,16 +806,8 @@ function TodayView({
   const milkEvents = events.filter((event) => event.event_type === "milk");
   const totalMilk = sumMilk(events);
   return (
-    <>
-      <section className="last-cards" aria-label={t("latestFeeding")}>
-        <div className="last-card"><span>{t("lastMilk")}</span><strong>{latestMilk ? elapsedLabel(latestMilk.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
-        <div className="last-card"><span>{t("lastFood")}</span><strong>{latestFood ? elapsedLabel(latestFood.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
-        <div className="last-card milk-total-card"><div><span>{t("todaysMilk")}</span><strong>{totalMilk} ml</strong></div><small>{t("bottlesRecorded", { count: milkEvents.length })}</small></div>
-      </section>
-
-      {schedule.length ? <TodaySchedule items={schedule} /> : null}
-
-      <section>
+    <div className="today-view">
+      <section className="quick-record-section">
         <div className="section-title"><div><p className="eyebrow">{t("quickRecord")}</p><h2>{t("whatHappened")}</h2></div><span>{t("addImportantDetails")}</span></div>
         <div className="quick-grid">
           {(Object.keys(EVENT_META) as EventType[]).map((type) => {
@@ -837,12 +829,20 @@ function TodayView({
         </div>
       </section>
 
+      {schedule.length ? <TodaySchedule items={schedule} /> : null}
+
+      <section className="last-cards" aria-label={t("latestFeeding")}>
+        <div className="last-card"><span>{t("lastMilk")}</span><strong>{latestMilk ? elapsedLabel(latestMilk.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
+        <div className="last-card"><span>{t("lastFood")}</span><strong>{latestFood ? elapsedLabel(latestFood.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
+        <div className="last-card milk-total-card"><div><span>{t("todaysMilk")}</span><strong>{totalMilk} ml</strong></div><small>{t("bottlesRecorded", { count: milkEvents.length })}</small></div>
+      </section>
+
       <section className="timeline-section">
         <div className="section-title"><div><p className="eyebrow">{t("today")}</p><h2>{t("recordCount", { count: events.length })}</h2></div></div>
         <SummaryCounts events={events} />
         <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty={t("nothingToday")} />
       </section>
-    </>
+    </div>
   );
 }
 
