@@ -57,12 +57,17 @@ textarea:focus-visible {
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
   padding: 22px 4px 18px;
 }
+
+.hero-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hero-profile { min-width: 0; }
 
 .hero h1,
 .section-title h2,
@@ -89,42 +94,14 @@ textarea:focus-visible {
 }
 
 .baby-age {
-  margin: 9px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.mobile-date { display: none; }
-
-.now-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 5px;
-  min-width: 150px;
-}
-
-.now-copy {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.now-copy span,
-.now-copy time {
-  display: block;
-}
-
-.now-copy span {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.now-copy time {
+.hero-time {
+  flex: 0 0 auto;
+  padding-bottom: 2px;
   color: var(--brand-dark);
   font-size: 1.05rem;
   font-weight: 800;
@@ -145,10 +122,6 @@ textarea:focus-visible {
   font-size: 0.72rem;
   font-weight: 700;
   backdrop-filter: blur(8px);
-}
-
-.now-panel .status-pill {
-  margin: 0;
 }
 
 .status-dot {
@@ -1610,27 +1583,13 @@ code {
 
 @media (max-width: 559px) {
   .hero {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
     padding: 18px 4px 14px;
   }
 
-  .hero-profile { min-width: 0; }
   .hero h1 { margin-top: 2px; font-size: 2.3rem; }
   .hero .eyebrow { font-size: 0.62rem; }
   .baby-age { margin-top: 5px; font-size: 0.72rem; line-height: 1.35; }
-  .mobile-date { display: inline; }
-
-  .now-panel {
-    min-width: 78px;
-    gap: 4px;
-  }
-
-  .now-copy { display: block; }
-  .now-copy span { display: none; }
-  .now-copy time { font-size: 0.92rem; }
-  .now-panel .status-pill { padding: 7px 9px; }
+  .hero-time { font-size: 0.92rem; }
 
   .quick-record-section .section-title { align-items: center; margin-bottom: 10px; }
   .quick-record-section .section-title h2 { font-size: 1.45rem; }
@@ -1682,7 +1641,6 @@ code {
     padding-left: 12px;
   }
 
-  .hero { gap: 6px; }
   .hero h1 { font-size: 2rem; }
   .bottom-nav { padding-right: 5px; padding-left: 5px; }
   .bottom-nav button small { font-size: 0.58rem; }
@@ -1714,7 +1672,6 @@ code {
   }
 
   .hero { padding-top: 26px; }
-  .now-panel { min-width: 170px; }
   .quick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
   .quick-button { min-height: 118px; }
   .growth-cards { gap: 14px; }

@@ -709,17 +709,14 @@ function BabyTrackerApp() {
   return (
     <main className="app-shell">
       <header className="hero">
-        <div className="hero-profile">
-          <p className="eyebrow">{t("babyRecord")}</p>
-          <h1>{profile.name}</h1>
-          <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}<span className="mobile-date"> · {formatCurrentDate(now, locale)}</span></p>
-        </div>
-        <div className="now-panel">
-          <div className="now-copy">
-            <span>{formatCurrentDate(now, locale)}</span>
-            <time dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
+        <div className="hero-heading">
+          <div className="hero-profile">
+            <p className="eyebrow">{t("babyRecord")}</p>
+            <h1>{profile.name}</h1>
           </div>
+          <time className="hero-time" dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
         </div>
+        <p className="baby-age"><span>{formatCurrentDate(now, locale)}</span> · {t("girl")} · {ageLabel(profile.date_of_birth, now, language)}</p>
       </header>
 
       {error ? (
