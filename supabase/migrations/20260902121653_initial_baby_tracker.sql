@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 create table public.babies (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  name text not null default 'Baby Girl'
+  name text not null default 'Harper'
     check (char_length(trim(name)) between 1 and 80),
   gender text not null default 'female'
     check (gender in ('female', 'male', 'other', 'unknown')),
@@ -51,6 +51,10 @@ create index events_baby_occurred_at_idx
 
 create index measurements_baby_measured_at_idx
   on public.measurements (baby_id, measured_at desc);
+
+create index babies_owner_id_idx on public.babies (owner_id);
+create index events_created_by_idx on public.events (created_by);
+create index measurements_created_by_idx on public.measurements (created_by);
 
 create function public.set_updated_at()
 returns trigger
@@ -100,7 +104,7 @@ on public.babies for insert
 to authenticated
 with check (
   (select auth.uid()) = owner_id
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
 );
 
 create policy "Owners can update their baby profile"
@@ -108,11 +112,11 @@ on public.babies for update
 to authenticated
 using (
   (select auth.uid()) = owner_id
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
 )
 with check (
   (select auth.uid()) = owner_id
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
 );
 
 create policy "Owners can read baby events"
@@ -132,7 +136,7 @@ on public.events for insert
 to authenticated
 with check (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -146,7 +150,7 @@ on public.events for update
 to authenticated
 using (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -156,7 +160,7 @@ using (
 )
 with check (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -170,7 +174,7 @@ on public.events for delete
 to authenticated
 using (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -196,7 +200,7 @@ on public.measurements for insert
 to authenticated
 with check (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -210,7 +214,7 @@ on public.measurements for update
 to authenticated
 using (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -220,7 +224,7 @@ using (
 )
 with check (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies
@@ -234,7 +238,7 @@ on public.measurements for delete
 to authenticated
 using (
   created_by = (select auth.uid())
-  and (auth.jwt() ->> 'client_id') is null
+  and ((select auth.jwt()) ->> 'client_id') is null
   and exists (
     select 1
     from public.babies

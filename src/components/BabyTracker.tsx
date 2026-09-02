@@ -41,7 +41,7 @@ function makeDemoProfile(): BabyProfile {
   return {
     id: DEMO_BABY_ID,
     owner_id: DEMO_USER_ID,
-    name: "Baby Girl",
+    name: "Harper",
     gender: "female",
     date_of_birth: "2025-11-15",
     timezone: "Asia/Hong_Kong",
@@ -142,7 +142,7 @@ export function BabyTracker() {
           events: BabyEvent[];
           measurements: Measurement[];
         };
-        setProfile(parsed.profile);
+        setProfile(parsed.profile.name === "Baby Girl" ? { ...parsed.profile, name: "Harper" } : parsed.profile);
         setEvents([...parsed.events].sort(sortNewest));
         setMeasurements([...parsed.measurements].sort(sortMeasurements));
       } else {
@@ -173,7 +173,7 @@ export function BabyTracker() {
         .from("babies")
         .insert({
           owner_id: session.user.id,
-          name: "Baby Girl",
+          name: "Harper",
           gender: "female",
           date_of_birth: "2025-11-15",
           timezone: "Asia/Hong_Kong",
@@ -672,6 +672,7 @@ function SettingsView({
 
 function LoginScreen() {
   const supabase = getSupabaseBrowserClient();
+  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -682,8 +683,18 @@ function LoginScreen() {
     if (!supabase) return;
     setBusy(true);
     setMessage(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMessage(error.message);
+    if (mode === "sign-up") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) setMessage(error.message);
+      else if (!data.session) setMessage("Check your email, then return here to sign in.");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setMessage(error.message);
+    }
     setBusy(false);
   }
 
@@ -691,13 +702,16 @@ function LoginScreen() {
     <main className="login-shell">
       <div className="login-icon">👶🏻</div>
       <p className="eyebrow">Private baby tracker</p>
-      <h1>Welcome back</h1>
-      <p>Sign in to see and record your daughter&apos;s day.</p>
+      <h1>{mode === "sign-up" ? "Create your account" : "Welcome back"}</h1>
+      <p>{mode === "sign-up" ? "Create the private login for Harper&apos;s records." : "Sign in to see and record Harper&apos;s day."}</p>
       <form className="login-form" onSubmit={submit}>
         <label><span>Email</span><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-        <label><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+        <label><span>Password</span><input type="password" autoComplete={mode === "sign-up" ? "new-password" : "current-password"} minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
         {message ? <div className="form-error" role="alert">{message}</div> : null}
-        <button className="primary-button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+        <button className="primary-button" type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "sign-up" ? "Create private account" : "Sign in"}</button>
+        <button className="login-switch" type="button" onClick={() => { setMode((current) => current === "sign-in" ? "sign-up" : "sign-in"); setMessage(null); }}>
+          {mode === "sign-up" ? "Already have an account? Sign in" : "First time? Create private account"}
+        </button>
       </form>
     </main>
   );

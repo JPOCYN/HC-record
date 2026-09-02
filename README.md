@@ -32,7 +32,7 @@ The initial migration creates:
 - owner-only RLS policies
 - read-only policies for OAuth sessions
 
-The app creates the first profile as a girl born on 15 November 2025 in the `Asia/Hong_Kong` time zone.
+The app creates Harper's profile as a girl born on 15 November 2025 in the `Asia/Hong_Kong` time zone.
 
 ## ChatGPT connection
 

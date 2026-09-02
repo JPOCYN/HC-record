@@ -777,6 +777,15 @@ code {
   text-align: left;
 }
 
+.login-switch {
+  min-height: 44px;
+  border: 0;
+  color: var(--brand-dark);
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .form-error {
   padding: 10px;
   border-radius: 10px;
