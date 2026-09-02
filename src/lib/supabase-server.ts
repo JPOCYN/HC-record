@@ -1,9 +1,10 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SUPABASE_PROJECT_URL, SUPABASE_PUBLISHABLE_KEY } from "@/src/lib/supabase-public-config";
 
 function env() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const url = SUPABASE_PROJECT_URL;
+  const key = SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) throw new Error("Supabase environment variables are not configured.");
   return { url, key };
 }
@@ -57,6 +58,5 @@ export async function verifySupabaseMcpToken(
 }
 
 export function supabaseOAuthIssuer(): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  return url ? `${url.replace(/\/$/, "")}/auth/v1` : "https://example.invalid/auth/v1";
+  return `${SUPABASE_PROJECT_URL.replace(/\/$/, "")}/auth/v1`;
 }

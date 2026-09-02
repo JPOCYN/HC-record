@@ -1,12 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SUPABASE_PROJECT_URL, SUPABASE_PUBLISHABLE_KEY } from "@/src/lib/supabase-public-config";
 
 let browserClient: SupabaseClient | null | undefined;
 
 export function hasSupabaseConfig(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  );
+  return Boolean(SUPABASE_PROJECT_URL && SUPABASE_PUBLISHABLE_KEY);
 }
 
 export function getSupabaseBrowserClient(): SupabaseClient | null {
@@ -17,8 +15,8 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   }
 
   browserClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    SUPABASE_PROJECT_URL,
+    SUPABASE_PUBLISHABLE_KEY,
     {
       auth: {
         persistSession: true,
