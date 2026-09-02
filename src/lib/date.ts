@@ -55,6 +55,28 @@ export function shiftDate(date: string, days: number): string {
   return dateKey(value);
 }
 
+export function startOfWeek(date: string): string {
+  const value = new Date(`${date}T12:00:00`);
+  const mondayOffset = (value.getDay() + 6) % 7;
+  value.setDate(value.getDate() - mondayOffset);
+  return dateKey(value);
+}
+
+export function weekDates(date: string): string[] {
+  const monday = startOfWeek(date);
+  return Array.from({ length: 7 }, (_, index) => shiftDate(monday, index));
+}
+
+export function formatScheduleTime(value: string | null): string {
+  if (!value) return "All day";
+  const [hour = "0", minute = "0"] = value.split(":");
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(2000, 0, 1, Number(hour), Number(minute)));
+}
+
 export function ageLabel(dateOfBirth: string, now = new Date()): string {
   const birth = new Date(`${dateOfBirth}T00:00:00`);
   let months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();

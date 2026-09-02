@@ -7,11 +7,14 @@ import {
   dateKey,
   elapsedLabel,
   formatDayHeading,
+  formatScheduleTime,
   formatShortDate,
   formatTime,
   fromDateTimeLocal,
   shiftDate,
+  startOfWeek,
   toDateTimeLocal,
+  weekDates,
 } from "@/src/lib/date";
 import { unlockHousehold } from "@/src/lib/household-auth";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-browser";
@@ -24,15 +27,24 @@ import type {
   Measurement,
   MeasurementDraft,
   MilkType,
+  ScheduleDraft,
+  ScheduleItem,
+  ScheduleItemType,
 } from "@/src/lib/types";
 
-type Tab = "today" | "history" | "growth" | "settings";
+type Tab = "today" | "week" | "history" | "growth" | "settings";
 
 const EVENT_META: Record<EventType, { emoji: string; label: string; color: string }> = {
   milk: { emoji: "🍼", label: "Milk", color: "peach" },
   food: { emoji: "🥣", label: "Food", color: "sun" },
   diaper: { emoji: "🧷", label: "Diaper", color: "sage" },
   shower: { emoji: "🚿", label: "Shower", color: "sky" },
+};
+
+const SCHEDULE_META: Record<ScheduleItemType, { emoji: string; label: string; color: string }> = {
+  school: { emoji: "🎒", label: "School", color: "schedule-school" },
+  doctor: { emoji: "🩺", label: "Doctor", color: "schedule-doctor" },
+  important: { emoji: "⭐", label: "Important", color: "schedule-important" },
 };
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
@@ -100,6 +112,10 @@ function makeDemoMeasurements(): Measurement[] {
   })).sort(sortMeasurements);
 }
 
+function makeDemoSchedule(): ScheduleItem[] {
+  return [];
+}
+
 export function BabyTracker() {
   const configured = hasSupabaseConfig();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -108,12 +124,15 @@ export function BabyTracker() {
   const [profile, setProfile] = useState<BabyProfile | null>(null);
   const [events, setEvents] = useState<BabyEvent[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("today");
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [editingEvent, setEditingEvent] = useState<BabyEvent | null>(null);
+  const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduleItem | null>(null);
+  const [addingScheduleDate, setAddingScheduleDate] = useState<string | null>(null);
   const [quickEventType, setQuickEventType] = useState<EventType | null>(null);
   const [toast, setToast] = useState<{ event: BabyEvent; message: string } | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -161,14 +180,17 @@ export function BabyTracker() {
           profile: BabyProfile;
           events: BabyEvent[];
           measurements: Measurement[];
+          scheduleItems?: ScheduleItem[];
         };
         setProfile(parsed.profile.name === "Baby Girl" ? { ...parsed.profile, name: "Harper" } : parsed.profile);
         setEvents([...parsed.events].sort(sortNewest));
         setMeasurements([...parsed.measurements].sort(sortMeasurements));
+        setScheduleItems([...(parsed.scheduleItems ?? [])].sort(sortScheduleItems));
       } else {
         setProfile(makeDemoProfile());
         setEvents(makeDemoEvents());
         setMeasurements(makeDemoMeasurements());
+        setScheduleItems(makeDemoSchedule());
       }
       setLoading(false);
       return;
@@ -208,7 +230,7 @@ export function BabyTracker() {
       baby = createdBaby as BabyProfile;
     }
 
-    const [eventResult, measurementResult] = await Promise.all([
+    const [eventResult, measurementResult, scheduleResult] = await Promise.all([
       supabase
         .from("events")
         .select("*")
@@ -221,10 +243,17 @@ export function BabyTracker() {
         .eq("baby_id", baby.id)
         .order("measured_at", { ascending: false })
         .limit(500),
+      supabase
+        .from("schedule_items")
+        .select("*")
+        .eq("baby_id", baby.id)
+        .order("event_date", { ascending: true })
+        .order("event_time", { ascending: true, nullsFirst: true })
+        .limit(1000),
     ]);
 
-    if (eventResult.error || measurementResult.error) {
-      setError(eventResult.error?.message ?? measurementResult.error?.message ?? "Unable to load records.");
+    if (eventResult.error || measurementResult.error || scheduleResult.error) {
+      setError(eventResult.error?.message ?? measurementResult.error?.message ?? scheduleResult.error?.message ?? "Unable to load records.");
       setLoading(false);
       return;
     }
@@ -232,6 +261,7 @@ export function BabyTracker() {
     setProfile(baby);
     setEvents(eventResult.data as BabyEvent[]);
     setMeasurements(measurementResult.data as Measurement[]);
+    setScheduleItems(scheduleResult.data as ScheduleItem[]);
     setLoading(false);
   }, [session, supabase]);
 
@@ -251,9 +281,9 @@ export function BabyTracker() {
     if (configured || loading || !profile) return;
     window.localStorage.setItem(
       "baby-record-demo",
-      JSON.stringify({ profile, events, measurements }),
+      JSON.stringify({ profile, events, measurements, scheduleItems }),
     );
-  }, [configured, events, loading, measurements, profile]);
+  }, [configured, events, loading, measurements, profile, scheduleItems]);
 
   useEffect(() => {
     if (!configured || !supabase || !session || !profileId) return;
@@ -303,12 +333,37 @@ export function BabyTracker() {
       )
       .on(
         "postgres_changes",
+        { event: "*", schema: "public", table: "schedule_items", filter: `baby_id=eq.${profileId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Pick<ScheduleItem, "id">;
+            setScheduleItems((current) => current.filter((item) => item.id !== deleted.id));
+            return;
+          }
+          const changed = payload.new as ScheduleItem;
+          setScheduleItems((current) => upsertById(current, changed, sortScheduleItems));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "schedule_items" },
+        (payload) => {
+          const deleted = payload.old as Pick<ScheduleItem, "id">;
+          setScheduleItems((current) => current.filter((item) => item.id !== deleted.id));
+        },
+      )
+      .on(
+        "postgres_changes",
         { event: "UPDATE", schema: "public", table: "babies", filter: `id=eq.${profileId}` },
         (payload) => setProfile(payload.new as BabyProfile),
       )
       .on("broadcast", { event: "event_deleted" }, ({ payload }) => {
         const id = typeof payload?.id === "string" ? payload.id : null;
         if (id) setEvents((current) => current.filter((item) => item.id !== id));
+      })
+      .on("broadcast", { event: "schedule_deleted" }, ({ payload }) => {
+        const id = typeof payload?.id === "string" ? payload.id : null;
+        if (id) setScheduleItems((current) => current.filter((item) => item.id !== id));
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setRealtimeStatus("connected");
@@ -473,6 +528,85 @@ export function BabyTracker() {
     setBusy(false);
   }
 
+  async function addScheduleItem(draft: ScheduleDraft): Promise<boolean> {
+    if (!profile) return false;
+    setBusy(true);
+    setError(null);
+    const stamp = new Date().toISOString();
+    const localItem: ScheduleItem = {
+      id: crypto.randomUUID(),
+      baby_id: profile.id,
+      created_by: session?.user.id ?? DEMO_USER_ID,
+      item_type: draft.item_type,
+      title: draft.title.trim(),
+      event_date: draft.event_date,
+      event_time: draft.event_time || null,
+      repeats_weekly: draft.repeats_weekly,
+      note: draft.note?.trim() || null,
+      created_at: stamp,
+      updated_at: stamp,
+    };
+    if (!supabase || !session) {
+      setScheduleItems((current) => [localItem, ...current].sort(sortScheduleItems));
+      setBusy(false);
+      return true;
+    }
+    const { data, error: insertError } = await supabase
+      .from("schedule_items")
+      .insert(localItem)
+      .select("*")
+      .single();
+    if (insertError) setError(insertError.message);
+    else setScheduleItems((current) => [data as ScheduleItem, ...current].sort(sortScheduleItems));
+    setBusy(false);
+    return !insertError;
+  }
+
+  async function updateScheduleItem(item: ScheduleItem): Promise<boolean> {
+    setBusy(true);
+    setError(null);
+    if (!supabase || !session) {
+      setScheduleItems((current) => current.map((row) => (row.id === item.id ? item : row)).sort(sortScheduleItems));
+      setBusy(false);
+      return true;
+    }
+    const { data, error: updateError } = await supabase
+      .from("schedule_items")
+      .update({
+        item_type: item.item_type,
+        title: item.title.trim(),
+        event_date: item.event_date,
+        event_time: item.event_time || null,
+        repeats_weekly: item.repeats_weekly,
+        note: item.note?.trim() || null,
+      })
+      .eq("id", item.id)
+      .select("*")
+      .single();
+    if (updateError) setError(updateError.message);
+    else setScheduleItems((current) => current.map((row) => (row.id === item.id ? data as ScheduleItem : row)).sort(sortScheduleItems));
+    setBusy(false);
+    return !updateError;
+  }
+
+  async function deleteScheduleItem(id: string): Promise<boolean> {
+    setBusy(true);
+    setError(null);
+    if (supabase && session) {
+      const { error: deleteError } = await supabase.from("schedule_items").delete().eq("id", id);
+      if (deleteError) {
+        setError(deleteError.message);
+        setBusy(false);
+        return false;
+      }
+      void realtimeChannelRef.current?.send({ type: "broadcast", event: "schedule_deleted", payload: { id } });
+    }
+    setScheduleItems((current) => current.filter((item) => item.id !== id));
+    setEditingScheduleItem(null);
+    setBusy(false);
+    return true;
+  }
+
   async function saveProfile(next: BabyProfile): Promise<boolean> {
     setBusy(true);
     setError(null);
@@ -507,21 +641,25 @@ export function BabyTracker() {
   const selectedEvents = events.filter((event) => dateKey(event.occurred_at) === selectedDate);
   const latestMilk = events.find((event) => event.event_type === "milk");
   const latestFood = events.find((event) => event.event_type === "food");
+  const todaySchedule = scheduleItems.filter((item) => scheduleOccursOn(item, today));
 
   return (
     <main className="app-shell">
       <header className="hero">
-        <div>
+        <div className="hero-profile">
           <p className="eyebrow">Baby record</p>
-          <div className="hero-name-row">
-            <h1>{profile.name}</h1>
-            <time className="current-time" dateTime={now.toISOString()}>{formatCurrentTime(now)}</time>
-          </div>
-          <p className="baby-age">{formatCurrentDate(now)} · Girl · {ageLabel(profile.date_of_birth)}</p>
+          <h1>{profile.name}</h1>
+          <p className="baby-age">Girl · {ageLabel(profile.date_of_birth)}</p>
         </div>
-        <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
-          <span className="status-dot" />
-          {realtimeStatus === "connected" ? "Live" : realtimeStatus === "connecting" ? "Syncing" : "Offline"}
+        <div className="now-panel">
+          <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
+            <span className="status-dot" />
+            {realtimeStatus === "connected" ? "Live" : realtimeStatus === "connecting" ? "Syncing" : "Offline"}
+          </div>
+          <div className="now-copy">
+            <span>{formatCurrentDate(now)}</span>
+            <time dateTime={now.toISOString()}>{formatCurrentTime(now)}</time>
+          </div>
         </div>
       </header>
 
@@ -542,6 +680,15 @@ export function BabyTracker() {
             onQuickAdd={quickAdd}
             onEdit={setEditingEvent}
             onDelete={deleteEvent}
+            schedule={todaySchedule}
+          />
+        ) : null}
+        {tab === "week" ? (
+          <WeekView
+            items={scheduleItems}
+            busy={busy}
+            onAdd={setAddingScheduleDate}
+            onEdit={setEditingScheduleItem}
           />
         ) : null}
         {tab === "history" ? (
@@ -569,6 +716,7 @@ export function BabyTracker() {
 
       <nav className="bottom-nav" aria-label="Primary navigation">
         <NavButton active={tab === "today"} icon="⌂" label="Today" onClick={() => setTab("today")} />
+        <NavButton active={tab === "week"} icon="▦" label="Week" onClick={() => setTab("week")} />
         <NavButton active={tab === "history"} icon="◫" label="History" onClick={() => setTab("history")} />
         <NavButton active={tab === "growth"} icon="↗" label="Growth" onClick={() => setTab("growth")} />
         <NavButton active={tab === "settings"} icon="⚙" label="Settings" onClick={() => setTab("settings")} />
@@ -593,6 +741,30 @@ export function BabyTracker() {
         />
       ) : null}
 
+      {addingScheduleDate ? (
+        <ScheduleEditor
+          defaultDate={addingScheduleDate}
+          busy={busy}
+          onClose={() => setAddingScheduleDate(null)}
+          onSave={async (draft) => {
+            if (await addScheduleItem(draft)) setAddingScheduleDate(null);
+          }}
+        />
+      ) : null}
+
+      {editingScheduleItem ? (
+        <ScheduleEditor
+          item={editingScheduleItem}
+          defaultDate={editingScheduleItem.event_date}
+          busy={busy}
+          onClose={() => setEditingScheduleItem(null)}
+          onSave={async (draft) => {
+            if (await updateScheduleItem({ ...editingScheduleItem, ...draft })) setEditingScheduleItem(null);
+          }}
+          onDelete={async () => { await deleteScheduleItem(editingScheduleItem.id); }}
+        />
+      ) : null}
+
       {toast ? (
         <div className="toast" role="status">
           <div><strong>Saved</strong><span>{toast.message}</span></div>
@@ -613,6 +785,7 @@ function TodayView({
   onQuickAdd,
   onEdit,
   onDelete,
+  schedule,
 }: {
   events: BabyEvent[];
   latestMilk?: BabyEvent;
@@ -621,13 +794,19 @@ function TodayView({
   onQuickAdd: (type: EventType) => void;
   onEdit: (event: BabyEvent) => void;
   onDelete: (id: string) => Promise<void>;
+  schedule: ScheduleItem[];
 }) {
+  const milkEvents = events.filter((event) => event.event_type === "milk");
+  const totalMilk = sumMilk(events);
   return (
     <>
       <section className="last-cards" aria-label="Latest feeding">
         <div className="last-card"><span>Last milk</span><strong>{latestMilk ? elapsedLabel(latestMilk.occurred_at) : "No record"}</strong></div>
         <div className="last-card"><span>Last food</span><strong>{latestFood ? elapsedLabel(latestFood.occurred_at) : "No record"}</strong></div>
+        <div className="last-card milk-total-card"><div><span>Today&apos;s milk</span><strong>{totalMilk} ml</strong></div><small>{milkEvents.length} bottle{milkEvents.length === 1 ? "" : "s"} recorded</small></div>
       </section>
+
+      {schedule.length ? <TodaySchedule items={schedule} /> : null}
 
       <section>
         <div className="section-title"><div><p className="eyebrow">Quick record</p><h2>What happened?</h2></div><span>Add the important details</span></div>
@@ -686,8 +865,156 @@ function HistoryView({
         <button type="button" disabled={selectedDate >= today} onClick={() => onDateChange(shiftDate(selectedDate, 1))} aria-label="Next day">›</button>
       </div>
       <SummaryCounts events={events} />
+      <DayInsights events={events} />
       <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty="No records for this day." />
     </section>
+  );
+}
+
+function TodaySchedule({ items }: { items: ScheduleItem[] }) {
+  return (
+    <section className="today-schedule" aria-label="Today's timetable">
+      <div className="today-schedule-heading"><div><p className="eyebrow">Today&apos;s timetable</p><h2>Don&apos;t forget</h2></div><span>{items.length} planned</span></div>
+      <div className="today-schedule-list">
+        {[...items].sort(sortScheduleItems).map((item) => {
+          const meta = SCHEDULE_META[item.item_type];
+          return <div className="today-schedule-item" key={item.id}><span className={`schedule-icon ${meta.color}`}>{meta.emoji}</span><div><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time)}{item.note ? ` · ${item.note}` : ""}</small></div></div>;
+        })}
+      </div>
+    </section>
+  );
+}
+
+function WeekView({
+  items,
+  busy,
+  onAdd,
+  onEdit,
+}: {
+  items: ScheduleItem[];
+  busy: boolean;
+  onAdd: (date: string) => void;
+  onEdit: (item: ScheduleItem) => void;
+}) {
+  const today = dateKey(new Date());
+  const [week, setWeek] = useState(() => startOfWeek(today));
+  const dates = weekDates(week);
+
+  return (
+    <section>
+      <div className="section-title schedule-title">
+        <div><p className="eyebrow">Baby timetable</p><h2>Harper&apos;s week</h2></div>
+        <button className="small-action" type="button" disabled={busy} onClick={() => onAdd(today)}>+ Add</button>
+      </div>
+      <div className="week-switcher">
+        <button type="button" onClick={() => setWeek(shiftDate(week, -7))} aria-label="Previous week">‹</button>
+        <button className="week-label" type="button" onClick={() => setWeek(startOfWeek(today))}>{formatWeekHeading(dates)}</button>
+        <button type="button" onClick={() => setWeek(shiftDate(week, 7))} aria-label="Next week">›</button>
+      </div>
+      <div className="week-list">
+        {dates.map((date) => {
+          const dayItems = items.filter((item) => scheduleOccursOn(item, date)).sort(sortScheduleItems);
+          const isToday = date === today;
+          return (
+            <article className={`week-day ${isToday ? "today" : ""}`} key={date}>
+              <div className="week-day-date">
+                <span>{formatWeekday(date)}</span>
+                <strong>{new Date(`${date}T12:00:00`).getDate()}</strong>
+                {isToday ? <small>Today</small> : null}
+              </div>
+              <div className="week-day-content">
+                {dayItems.length ? dayItems.map((item) => {
+                  const meta = SCHEDULE_META[item.item_type];
+                  return (
+                    <button className={`schedule-row ${meta.color}`} type="button" key={`${item.id}-${date}`} onClick={() => onEdit(item)}>
+                      <span className="schedule-row-emoji">{meta.emoji}</span>
+                      <span className="schedule-row-copy"><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time)}{item.repeats_weekly ? " · Every week" : ""}{item.note ? ` · ${item.note}` : ""}</small></span>
+                      <span className="chevron">›</span>
+                    </button>
+                  );
+                }) : <button className="empty-day" type="button" onClick={() => onAdd(date)}>Nothing planned <span>+</span></button>}
+              </div>
+              <button className="day-add" type="button" disabled={busy} onClick={() => onAdd(date)} aria-label={`Add timetable entry on ${date}`}>+</button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleEditor({
+  item,
+  defaultDate,
+  busy,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  item?: ScheduleItem;
+  defaultDate: string;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (draft: ScheduleDraft) => Promise<void>;
+  onDelete?: () => Promise<void>;
+}) {
+  const [type, setType] = useState<ScheduleItemType>(item?.item_type ?? "school");
+  const [title, setTitle] = useState(item?.title ?? "School");
+  const [eventDate, setEventDate] = useState(item?.event_date ?? defaultDate);
+  const [eventTime, setEventTime] = useState(item?.event_time?.slice(0, 5) ?? "");
+  const [repeatsWeekly, setRepeatsWeekly] = useState(item?.repeats_weekly ?? true);
+  const [note, setNote] = useState(item?.note ?? "");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const meta = SCHEDULE_META[type];
+
+  function chooseType(nextType: ScheduleItemType) {
+    const currentDefault = SCHEDULE_META[type].label;
+    setType(nextType);
+    if (!title.trim() || title === currentDefault) setTitle(SCHEDULE_META[nextType].label);
+    if (!item) setRepeatsWeekly(nextType === "school");
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="schedule-editor-title">
+        <div className="sheet-handle" />
+        <div className="sheet-title"><div className={`schedule-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">{item ? "Edit timetable" : "New timetable"}</p><h2 id="schedule-editor-title">{item ? item.title : "Add to her week"}</h2></div><button type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (!title.trim()) return;
+          void onSave({ item_type: type, title: title.trim(), event_date: eventDate, event_time: eventTime || null, repeats_weekly: repeatsWeekly, note: note.trim() || null });
+        }}>
+          <fieldset className="schedule-type-picker"><legend>What is it?</legend><div>{(Object.keys(SCHEDULE_META) as ScheduleItemType[]).map((option) => <button className={type === option ? "selected" : ""} type="button" key={option} onClick={() => chooseType(option)} aria-pressed={type === option}><span>{SCHEDULE_META[option].emoji}</span>{SCHEDULE_META[option].label}</button>)}</div></fieldset>
+          <label><span>Name</span><input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="School" required /></label>
+          <div className="form-grid schedule-date-time">
+            <label><span>Date</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required /></label>
+            <label><span>Time (optional)</span><input type="time" value={eventTime} onChange={(event) => setEventTime(event.target.value)} /></label>
+          </div>
+          <label className="repeat-toggle"><input type="checkbox" checked={repeatsWeekly} onChange={(event) => setRepeatsWeekly(event.target.checked)} /><span><strong>Repeat every week</strong><small>Useful for school and regular activities</small></span></label>
+          <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="What to bring, address, or other detail" /></label>
+          <button className="primary-button" type="submit" disabled={busy || !title.trim()}>{busy ? "Saving…" : item ? "Save changes" : "Add to timetable"}</button>
+          {onDelete ? <button className="danger-button" type="button" disabled={busy} onClick={() => { if (confirmingDelete) void onDelete(); else setConfirmingDelete(true); }}>{confirmingDelete ? "Tap again to delete" : "Delete timetable entry"}</button> : null}
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function DayInsights({ events }: { events: BabyEvent[] }) {
+  const milkRows = events.filter((event) => event.event_type === "milk" && event.amount_ml != null);
+  const totalMilk = sumMilk(events);
+  const averageMilk = milkRows.length ? Math.round(totalMilk / milkRows.length) : null;
+  const wetDiapers = events.filter((event) => event.event_type === "diaper" && (event.diaper_type === "wee" || event.diaper_type === "both")).length;
+  const pooDiapers = events.filter((event) => event.event_type === "diaper" && (event.diaper_type === "poo" || event.diaper_type === "both")).length;
+  const chronological = [...events].sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
+  const activeSpan = chronological.length > 1 ? `${formatTime(chronological[0].occurred_at)}–${formatTime(chronological.at(-1)!.occurred_at)}` : chronological.length ? formatTime(chronological[0].occurred_at) : "—";
+  return (
+    <div className="insight-grid" aria-label="Daily insights">
+      <article><span>Milk total</span><strong>{totalMilk} ml</strong><small>{milkRows.length} bottle{milkRows.length === 1 ? "" : "s"}</small></article>
+      <article><span>Avg. bottle</span><strong>{averageMilk == null ? "—" : `${averageMilk} ml`}</strong><small>Recorded amount</small></article>
+      <article><span>Diapers</span><strong>{wetDiapers} wet · {pooDiapers} poo</strong><small>Both counts in each</small></article>
+      <article><span>Recorded span</span><strong>{activeSpan}</strong><small>First to last record</small></article>
+    </div>
   );
 }
 
@@ -1046,6 +1373,34 @@ function diaperTypeLabel(type: DiaperType) {
 
 function sortMeasurements(a: Measurement, b: Measurement) {
   return Date.parse(b.measured_at) - Date.parse(a.measured_at);
+}
+
+function sortScheduleItems(a: ScheduleItem, b: ScheduleItem) {
+  const dateDifference = a.event_date.localeCompare(b.event_date);
+  if (dateDifference) return dateDifference;
+  return (a.event_time ?? "").localeCompare(b.event_time ?? "");
+}
+
+function scheduleOccursOn(item: ScheduleItem, date: string) {
+  if (!item.repeats_weekly) return item.event_date === date;
+  if (item.event_date > date) return false;
+  return new Date(`${item.event_date}T12:00:00`).getDay() === new Date(`${date}T12:00:00`).getDay();
+}
+
+function sumMilk(events: BabyEvent[]) {
+  return events.reduce((total, event) => total + (event.event_type === "milk" ? event.amount_ml ?? 0 : 0), 0);
+}
+
+function formatWeekday(date: string) {
+  return new Intl.DateTimeFormat("en-HK", { weekday: "short" }).format(new Date(`${date}T12:00:00`));
+}
+
+function formatWeekHeading(dates: string[]) {
+  const first = new Date(`${dates[0]}T12:00:00`);
+  const last = new Date(`${dates.at(-1)}T12:00:00`);
+  const firstLabel = new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short" }).format(first);
+  const lastLabel = new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short", year: "numeric" }).format(last);
+  return `${firstLabel} – ${lastLabel}`;
 }
 
 function upsertById<T extends { id: string }>(current: T[], changed: T, sort: (a: T, b: T) => number) {

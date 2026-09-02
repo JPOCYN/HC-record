@@ -1,7 +1,7 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { createSupabaseForToken, verifySupabaseMcpToken } from "@/src/lib/supabase-server";
-import type { BabyEvent, BabyProfile, EventType, Measurement } from "@/src/lib/types";
+import type { BabyEvent, BabyProfile, EventType, Measurement, ScheduleItem } from "@/src/lib/types";
 
 export const runtime = "nodejs";
 
@@ -170,6 +170,41 @@ const handler = createMcpHandler((server) => {
       };
     }),
   );
+
+  server.registerTool(
+    "get_schedule",
+    {
+      title: "Get baby timetable",
+      description: "Read school, doctor appointment, and important timetable entries for up to 90 days, including weekly repeating items.",
+      inputSchema: z.object({ start_date: dateSchema, end_date: dateSchema }).strict(),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ start_date, end_date }, context) => runTool(context.http?.authInfo?.token, async (supabase) => {
+      validateRange(start_date, end_date, 90);
+      const profile = await getProfile(supabase);
+      const { data, error } = await supabase
+        .from("schedule_items")
+        .select("item_type, title, event_date, event_time, repeats_weekly, note")
+        .eq("baby_id", profile.id)
+        .lte("event_date", end_date)
+        .order("event_date", { ascending: true })
+        .order("event_time", { ascending: true, nullsFirst: true })
+        .limit(1000);
+      if (error) throw error;
+      const items = data as Pick<ScheduleItem, "item_type" | "title" | "event_date" | "event_time" | "repeats_weekly" | "note">[];
+      const occurrences = calendarDates(start_date, end_date).flatMap((date) => items
+        .filter((item) => scheduleItemOccursOn(item, date))
+        .map((item) => ({
+          date,
+          time: item.event_time,
+          item_type: item.item_type,
+          title: item.title,
+          repeats_weekly: item.repeats_weekly,
+          note: item.note,
+        })));
+      return { baby: profile.name, timezone: profile.timezone, start_date, end_date, occurrences };
+    }),
+  );
 });
 
 const authenticatedHandler = withMcpAuth(handler, verifySupabaseMcpToken, {
@@ -297,4 +332,24 @@ function validateRange(startDate: string, endDate: string, maximumDays: number) 
   const days = Math.floor((end - start) / 86_400_000);
   if (days < 0) throw new Error("end_date must be on or after start_date.");
   if (days > maximumDays) throw new Error(`Date range cannot exceed ${maximumDays} days.`);
+}
+
+function calendarDates(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function scheduleItemOccursOn(
+  item: Pick<ScheduleItem, "event_date" | "repeats_weekly">,
+  date: string,
+) {
+  if (!item.repeats_weekly) return item.event_date === date;
+  if (item.event_date > date) return false;
+  return new Date(`${item.event_date}T00:00:00Z`).getUTCDay() === new Date(`${date}T00:00:00Z`).getUTCDay();
 }
