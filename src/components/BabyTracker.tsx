@@ -563,6 +563,23 @@ function BabyTrackerApp() {
     setBusy(false);
   }
 
+  async function deleteMeasurement(id: string): Promise<boolean> {
+    if (!requireOnline()) return false;
+    setBusy(true);
+    setError(null);
+    if (supabase && session) {
+      const { error: deleteError } = await supabase.from("measurements").delete().eq("id", id);
+      if (deleteError) {
+        setError(deleteError.message);
+        setBusy(false);
+        return false;
+      }
+    }
+    setMeasurements((current) => current.filter((item) => item.id !== id));
+    setBusy(false);
+    return true;
+  }
+
   async function addScheduleItem(draft: ScheduleDraft): Promise<boolean> {
     if (!requireOnline()) return false;
     if (!profile) return false;
@@ -743,7 +760,7 @@ function BabyTrackerApp() {
           />
         ) : null}
         {tab === "growth" ? (
-          <GrowthView measurements={measurements} busy={busy} onAdd={addMeasurement} />
+          <GrowthView measurements={measurements} busy={busy} onAdd={addMeasurement} onDelete={deleteMeasurement} />
         ) : null}
         {tab === "settings" ? (
           <SettingsView
@@ -1070,9 +1087,21 @@ function DayInsights({ events }: { events: BabyEvent[] }) {
   );
 }
 
-function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]; busy: boolean; onAdd: (draft: MeasurementDraft) => Promise<void> }) {
+function GrowthView({
+  measurements,
+  busy,
+  onAdd,
+  onDelete,
+}: {
+  measurements: Measurement[];
+  busy: boolean;
+  onAdd: (draft: MeasurementDraft) => Promise<void>;
+  onDelete: (id: string) => Promise<boolean>;
+}) {
   const { language, locale, t } = useI18n();
   const [measurementType, setMeasurementType] = useState<"weight" | "height" | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [date, setDate] = useState(() => toDateTimeLocal());
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
@@ -1080,7 +1109,6 @@ function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]
   const newestFirst = [...measurements].sort(sortMeasurements);
   const weightRows = newestFirst.filter((item) => item.weight_kg != null);
   const heightRows = newestFirst.filter((item) => item.height_cm != null);
-  const chronologicalWeights = [...weightRows].reverse();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -1094,6 +1122,16 @@ function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]
     setNote("");
     setDate(toDateTimeLocal());
     setMeasurementType(null);
+  }
+
+  async function handleDelete(id: string) {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      return;
+    }
+    setDeletingId(id);
+    if (await onDelete(id)) setConfirmDeleteId(null);
+    setDeletingId(null);
   }
 
   return (
@@ -1122,24 +1160,43 @@ function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]
         <MetricCard label={t("latestHeight")} value={heightRows[0]?.height_cm != null ? `${heightRows[0].height_cm.toFixed(1)} cm` : "—"} change={metricChange(heightRows[0]?.height_cm, heightRows[1]?.height_cm, "cm", 1, language)} />
       </div>
 
-      {weightRows.length > 1 ? (
-        <div className="panel chart-panel">
-          <div><p className="eyebrow">{t("trend")}</p><h3>{t("weight")}</h3></div>
-          <Sparkline values={chronologicalWeights.map((item) => item.weight_kg).filter((value): value is number => value != null)} />
-        </div>
+      {measurements.length ? (
+        <section className="growth-curves" aria-label={t("growthCurves")}>
+          <div className="growth-section-heading"><p className="eyebrow">{t("trend")}</p><h3>{t("growthCurves")}</h3></div>
+          <div className="growth-curve-grid">
+            {weightRows.length ? <GrowthCurve rows={[...weightRows].reverse()} metric="weight_kg" label={t("weight")} unit="kg" digits={2} /> : null}
+            {heightRows.length ? <GrowthCurve rows={[...heightRows].reverse()} metric="height_cm" label={t("height")} unit="cm" digits={1} /> : null}
+          </div>
+        </section>
       ) : null}
 
-      <div className="measurement-list">
-        {newestFirst.length ? newestFirst.map((item) => (
-          <article className="measurement-row" key={item.id}>
-            <div><strong>{formatShortDate(item.measured_at, locale)}</strong><span>{formatTime(item.measured_at, locale)}</span></div>
-            <div className="measurement-values">
-              {item.weight_kg != null ? <span>{item.weight_kg.toFixed(2)} kg</span> : null}
-              {item.height_cm != null ? <span>{item.height_cm.toFixed(1)} cm</span> : null}
-            </div>
-          </article>
-        )) : <EmptyState text={t("noMeasurements")} />}
-      </div>
+      {newestFirst.length ? (
+        <section className="panel growth-table-panel" aria-label={t("growthHistory")}>
+          <div className="growth-section-heading"><p className="eyebrow">{t("growthHistory")}</p><h3>{t("measurements")}</h3></div>
+          <div className="growth-table-scroll">
+            <table className="growth-table">
+              <thead><tr><th>{t("date")}</th><th>{t("weight")}</th><th>{t("height")}</th><th><span className="sr-only">{t("delete")}</span></th></tr></thead>
+              <tbody>
+                {newestFirst.map((item) => {
+                  const dateLabel = formatShortDate(item.measured_at, locale);
+                  const confirming = confirmDeleteId === item.id;
+                  const deleting = deletingId === item.id;
+                  return (
+                    <tr key={item.id}>
+                      <td className="growth-date"><strong>{dateLabel}</strong><small>{formatTime(item.measured_at, locale)}</small></td>
+                      <td>{item.weight_kg != null ? `${item.weight_kg.toFixed(2)} kg` : "—"}</td>
+                      <td>{item.height_cm != null ? `${item.height_cm.toFixed(1)} cm` : "—"}</td>
+                      <td><button className={`measurement-delete ${confirming ? "confirm" : ""}`} type="button" disabled={busy || deleting} aria-label={confirming ? t("confirmDeleteMeasurement", { date: dateLabel }) : t("deleteMeasurement", { date: dateLabel })} onClick={() => void handleDelete(item.id)}>{deleting ? t("deleting") : confirming ? t("confirm") : t("delete")}</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <EmptyState text={t("noMeasurements")} />
+      )}
     </section>
   );
 }
@@ -1193,11 +1250,6 @@ function SettingsView({
           <button className="small-action" type="button" onClick={() => { setDraft(profile); setEditing(true); }}>{t("edit")}</button>
         </div>
       )}
-
-      <div className="panel chatgpt-card">
-        <div className="chatgpt-mark">✦</div>
-        <div><p className="eyebrow">{t("chatgptAccess")}</p><h3>{t("askRecords")}</h3><p>{t("chatgptDescription")}</p><span className="connection-note">{configured ? t("notConnected") : t("connectSupabase")}</span></div>
-      </div>
 
       {!configured ? <div className="setup-note"><strong>{t("demoMode")}</strong><p>{t("demoDescription")}</p></div> : null}
       {configured ? <p className="account-line">{t("pinActive")}</p> : null}
@@ -1452,14 +1504,48 @@ function MetricCard({ label, value, change }: { label: string; value: string; ch
   return <article className="metric-card"><span>{label}</span><strong>{value}</strong><small>{change ?? t("noPreviousMeasurement")}</small></article>;
 }
 
-function Sparkline({ values }: { values: number[] }) {
-  const { t } = useI18n();
-  if (values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+function GrowthCurve({
+  rows,
+  metric,
+  label,
+  unit,
+  digits,
+}: {
+  rows: Measurement[];
+  metric: "weight_kg" | "height_cm";
+  label: string;
+  unit: string;
+  digits: number;
+}) {
+  const { locale, t } = useI18n();
+  const values = rows.flatMap((row) => row[metric] == null ? [] : [{ value: row[metric], date: row.measured_at }]);
+  if (!values.length) return null;
+  const rawValues = values.map((item) => item.value);
+  const min = Math.min(...rawValues);
+  const max = Math.max(...rawValues);
   const range = max - min || 1;
-  const points = values.map((value, index) => `${10 + (index / (values.length - 1)) * 280},${90 - ((value - min) / range) * 70}`).join(" ");
-  return <svg className="sparkline" viewBox="0 0 300 110" role="img" aria-label={t("trendFrom", { start: values[0], end: values.at(-1) ?? values[0] })}><defs><linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#e88972" stopOpacity=".28"/><stop offset="1" stopColor="#e88972" stopOpacity="0"/></linearGradient></defs><path d={`M ${points.replaceAll(" ", " L ")} L 290 105 L 10 105 Z`} fill="url(#chart-fill)"/><polyline points={points} fill="none" stroke="#d86f59" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>{values.map((value, index) => { const [cx, cy] = points.split(" ")[index].split(","); return <circle key={`${value}-${index}`} cx={cx} cy={cy} r="4.5" fill="#fff" stroke="#d86f59" strokeWidth="3"/>; })}</svg>;
+  const coordinates = values.map((item, index) => ({
+    x: values.length === 1 ? 160 : 16 + (index / (values.length - 1)) * 288,
+    y: values.length === 1 ? 65 : 100 - ((item.value - min) / range) * 70,
+  }));
+  const points = coordinates.map(({ x, y }) => `${x},${y}`).join(" ");
+  const area = `M ${coordinates.map(({ x, y }) => `${x} ${y}`).join(" L ")} L ${coordinates.at(-1)!.x} 118 L ${coordinates[0].x} 118 Z`;
+  const color = metric === "weight_kg" ? "#d86f59" : "#4f8ca7";
+  const gradientId = `growth-fill-${metric}`;
+  const latest = values.at(-1)!;
+  return (
+    <article className="panel growth-curve-card">
+      <div className="growth-curve-heading"><span>{label}</span><strong>{latest.value.toFixed(digits)} {unit}</strong></div>
+      <svg className="growth-curve" viewBox="0 0 320 125" role="img" aria-label={t("trendFrom", { start: values[0].value, end: latest.value })}>
+        <defs><linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".24"/><stop offset="1" stopColor={color} stopOpacity="0"/></linearGradient></defs>
+        {[30, 65, 100].map((y) => <line key={y} x1="16" x2="304" y1={y} y2={y} stroke="#eadfd8" strokeWidth="1" />)}
+        <path d={area} fill={`url(#${gradientId})`} />
+        {values.length > 1 ? <polyline points={points} fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        {coordinates.map(({ x, y }, index) => <circle key={`${values[index].date}-${values[index].value}`} cx={x} cy={y} r="4" fill="#fff" stroke={color} strokeWidth="3" />)}
+      </svg>
+      <div className="growth-curve-footer"><span>{formatCurveDate(values[0].date, locale)}</span><span>{formatCurveDate(latest.date, locale)}</span></div>
+    </article>
+  );
 }
 
 function EmptyState({ text }: { text: string }) {
@@ -1509,6 +1595,10 @@ function sumMilk(events: BabyEvent[]) {
 
 function formatWeekday(date: string, locale: string) {
   return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(`${date}T12:00:00`));
+}
+
+function formatCurveDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(value));
 }
 
 function formatWeekHeading(dates: string[], locale: string) {

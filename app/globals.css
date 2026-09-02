@@ -927,51 +927,119 @@ textarea {
   line-height: 1.3;
 }
 
-.chart-panel h3,
-.chatgpt-card h3 {
-  margin: 4px 0 0;
+.growth-section-heading {
+  margin: 22px 2px 11px;
+}
+
+.growth-section-heading h3 {
+  margin: 3px 0 0;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.35rem;
   font-weight: 500;
 }
 
-.sparkline {
+.growth-curve-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.growth-curve-card {
+  margin: 0;
+  padding: 14px;
+}
+
+.growth-curve-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.growth-curve-heading span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.growth-curve-heading strong { font-size: 1rem; }
+
+.growth-curve {
   display: block;
   width: 100%;
   height: auto;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
-.measurement-row {
+.growth-curve-footer {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 68px;
-  padding: 12px 15px;
-  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 700;
 }
 
-.measurement-row:last-child { border-bottom: 0; }
-.measurement-row strong,
-.measurement-row span { display: block; }
-.measurement-row > div > span { margin-top: 3px; color: var(--muted); font-size: 0.7rem; }
-
-.measurement-values {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
+.growth-table-panel {
+  overflow: hidden;
+  margin-top: 16px;
+  padding: 0;
 }
 
-.measurement-values span {
-  padding: 7px 9px;
-  border-radius: 10px;
-  color: var(--ink) !important;
-  background: #f8eee8;
-  font-size: 0.76rem !important;
+.growth-table-panel .growth-section-heading {
+  margin: 0;
+  padding: 15px 15px 11px;
+}
+
+.growth-table-scroll { overflow-x: auto; }
+
+.growth-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.growth-table th,
+.growth-table td {
+  padding: 10px 7px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.growth-table th {
+  color: var(--muted);
+  background: #fbf7f4;
+  font-size: 0.62rem;
   font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
+
+.growth-table th:nth-child(1) { width: 30%; }
+.growth-table th:nth-child(2),
+.growth-table th:nth-child(3) { width: 21%; }
+.growth-table th:nth-child(4) { width: 28%; }
+.growth-table td { font-size: 0.7rem; font-weight: 750; }
+.growth-date strong,
+.growth-date small { display: block; }
+.growth-date small { margin-top: 3px; color: var(--muted); font-size: 0.62rem; font-weight: 600; }
+
+.measurement-delete {
+  width: 100%;
+  min-height: 34px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 9px;
+  color: #a44b41;
+  background: #faece8;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.measurement-delete.confirm { color: #fff; background: #b65349; }
+.measurement-delete:disabled { opacity: 0.55; }
 
 .settings-form {
   display: grid;
@@ -1033,13 +1101,6 @@ textarea {
 .profile-summary strong { margin-top: 4px; font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 500; }
 .profile-summary small { margin-top: 5px; color: var(--muted); font-size: 0.72rem; line-height: 1.4; }
 
-.chatgpt-card {
-  display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 13px;
-  margin-top: 22px;
-}
-
 .chatgpt-mark {
   display: grid;
   width: 48px;
@@ -1051,24 +1112,11 @@ textarea {
   font-size: 1.4rem;
 }
 
-.chatgpt-card p:not(.eyebrow) {
-  margin: 8px 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
 code {
   padding: 2px 5px;
   border-radius: 5px;
   background: #f0ebe7;
   font-size: 0.88em;
-}
-
-.connection-note {
-  color: #3e7564;
-  font-size: 0.7rem;
-  font-weight: 750;
 }
 
 .setup-note {
@@ -1670,9 +1718,13 @@ code {
   .quick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
   .quick-button { min-height: 118px; }
   .growth-cards { gap: 14px; }
+  .growth-curve-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .growth-table th:nth-child(1) { width: 36%; }
+  .growth-table th:nth-child(2),
+  .growth-table th:nth-child(3) { width: 23%; }
+  .growth-table th:nth-child(4) { width: 18%; }
   .summary-strip { padding: 14px 8px; }
   .event-main { min-height: 78px; padding-right: 14px; }
-  .measurement-row { min-height: 74px; padding-right: 20px; padding-left: 20px; }
   .insight-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .bottom-nav {
     bottom: 20px;
