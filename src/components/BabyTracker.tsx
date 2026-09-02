@@ -20,9 +20,11 @@ import {
 import { unlockHousehold } from "@/src/lib/household-auth";
 import { I18nProvider, useI18n, type TranslationKey } from "@/src/lib/i18n";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-browser";
+import { ageInMonths, formatWhoPercentile, whoPercentile, whoReferenceValue, WHO_PERCENTILE_CURVES, type WhoGrowthMetric } from "@/src/lib/who-growth";
 import type {
   BabyEvent,
   BabyProfile,
+  BloodType,
   DiaperType,
   EventDraft,
   EventType,
@@ -49,6 +51,8 @@ const SCHEDULE_META: Record<ScheduleItemType, { emoji: string; labelKey: Transla
   important: { emoji: "⭐", labelKey: "important", color: "schedule-important" },
 };
 
+const BLOOD_TYPES: readonly BloodType[] = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 const DEMO_BABY_ID = "00000000-0000-0000-0000-000000000002";
 
@@ -60,6 +64,11 @@ function makeDemoProfile(): BabyProfile {
     name: "Harper",
     gender: "female",
     date_of_birth: "2025-11-15",
+    blood_type: null,
+    birth_weight_kg: null,
+    birth_time: null,
+    gestational_weeks: null,
+    gestational_days: null,
     timezone: "Asia/Hong_Kong",
     created_at: now,
     updated_at: now,
@@ -676,6 +685,11 @@ function BabyTrackerApp() {
       .update({
         name: next.name.trim(),
         date_of_birth: next.date_of_birth,
+        blood_type: next.blood_type,
+        birth_weight_kg: next.birth_weight_kg,
+        birth_time: next.birth_time || null,
+        gestational_weeks: next.gestational_weeks,
+        gestational_days: next.gestational_weeks == null ? null : next.gestational_days,
         timezone: next.timezone,
       })
       .eq("id", next.id)
@@ -757,7 +771,7 @@ function BabyTrackerApp() {
           />
         ) : null}
         {tab === "growth" ? (
-          <GrowthView measurements={measurements} busy={busy} onAdd={addMeasurement} onDelete={deleteMeasurement} />
+          <GrowthView dateOfBirth={profile.date_of_birth} measurements={measurements} busy={busy} onAdd={addMeasurement} onDelete={deleteMeasurement} />
         ) : null}
         {tab === "settings" ? (
           <SettingsView
@@ -1085,11 +1099,13 @@ function DayInsights({ events }: { events: BabyEvent[] }) {
 }
 
 function GrowthView({
+  dateOfBirth,
   measurements,
   busy,
   onAdd,
   onDelete,
 }: {
+  dateOfBirth: string;
   measurements: Measurement[];
   busy: boolean;
   onAdd: (draft: MeasurementDraft) => Promise<void>;
@@ -1160,10 +1176,12 @@ function GrowthView({
       {measurements.length ? (
         <section className="growth-curves" aria-label={t("growthCurves")}>
           <div className="growth-section-heading"><p className="eyebrow">{t("trend")}</p><h3>{t("growthCurves")}</h3></div>
+          <p className="who-standard-label">{t("whoStandardGirls")}</p>
           <div className="growth-curve-grid">
-            {weightRows.length ? <GrowthCurve rows={[...weightRows].reverse()} metric="weight_kg" label={t("weight")} unit="kg" digits={2} /> : null}
-            {heightRows.length ? <GrowthCurve rows={[...heightRows].reverse()} metric="height_cm" label={t("height")} unit="cm" digits={1} /> : null}
+            {weightRows.length ? <GrowthCurve dateOfBirth={dateOfBirth} rows={[...weightRows].reverse()} metric="weight" label={t("weight")} unit="kg" digits={2} /> : null}
+            {heightRows.length ? <GrowthCurve dateOfBirth={dateOfBirth} rows={[...heightRows].reverse()} metric="height" label={t("lengthHeight")} unit="cm" digits={1} /> : null}
           </div>
+          <p className="who-growth-note">{t("whoGrowthNote")}</p>
         </section>
       ) : null}
 
@@ -1176,13 +1194,15 @@ function GrowthView({
               <tbody>
                 {newestFirst.map((item) => {
                   const dateLabel = formatShortDate(item.measured_at, locale);
+                  const weightPercentile = item.weight_kg == null ? null : formatWhoPercentile(whoPercentile("weight", dateOfBirth, item.measured_at, item.weight_kg));
+                  const heightPercentile = item.height_cm == null ? null : formatWhoPercentile(whoPercentile("height", dateOfBirth, item.measured_at, item.height_cm));
                   const confirming = confirmDeleteId === item.id;
                   const deleting = deletingId === item.id;
                   return (
                     <tr key={item.id}>
                       <td className="growth-date"><strong>{dateLabel}</strong><small>{formatTime(item.measured_at, locale)}</small></td>
-                      <td>{item.weight_kg != null ? `${item.weight_kg.toFixed(2)} kg` : "—"}</td>
-                      <td>{item.height_cm != null ? `${item.height_cm.toFixed(1)} cm` : "—"}</td>
+                      <td>{item.weight_kg != null ? <><strong>{item.weight_kg.toFixed(2)} kg</strong>{weightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: weightPercentile })}</small> : null}</> : "—"}</td>
+                      <td>{item.height_cm != null ? <><strong>{item.height_cm.toFixed(1)} cm</strong>{heightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: heightPercentile })}</small> : null}</> : "—"}</td>
                       <td><button className={`measurement-delete ${confirming ? "confirm" : ""}`} type="button" disabled={busy || deleting} aria-label={confirming ? t("confirmDeleteMeasurement", { date: dateLabel }) : t("deleteMeasurement", { date: dateLabel })} onClick={() => void handleDelete(item.id)}>{deleting ? t("deleting") : confirming ? t("confirm") : t("delete")}</button></td>
                     </tr>
                   );
@@ -1219,6 +1239,12 @@ function SettingsView({
   const [draft, setDraft] = useState(profile);
   const [editing, setEditing] = useState(false);
   const connectionState = !isOnline ? "offline" : realtimeStatus === "connected" ? "online" : "syncing";
+  const birthDetails = [
+    profile.birth_time ? `${t("birthTime")}: ${formatScheduleTime(profile.birth_time, locale, "")}` : null,
+    profile.birth_weight_kg != null ? `${t("birthWeightKg")}: ${profile.birth_weight_kg.toFixed(3)} kg` : null,
+    profile.blood_type ? `${t("bloodType")}: ${profile.blood_type}` : null,
+    profile.gestational_weeks != null ? t("gestationalSummary", { weeks: profile.gestational_weeks, days: profile.gestational_days ?? 0 }) : null,
+  ].filter(Boolean).join(" · ");
 
   async function submitProfile(event: FormEvent) {
     event.preventDefault();
@@ -1237,13 +1263,19 @@ function SettingsView({
         <form className="panel settings-form" onSubmit={(event) => void submitProfile(event)}>
           <div className="form-heading"><strong>{t("editProfile")}</strong><button type="button" onClick={() => { setDraft(profile); setEditing(false); }}>{t("cancel")}</button></div>
           <label><span>{t("name")}</span><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
-          <label><span>{t("dateOfBirth")}</span><input type="date" value={draft.date_of_birth} max={dateKey(new Date())} onChange={(event) => setDraft({ ...draft, date_of_birth: event.target.value })} required /></label>
+          <div className="form-grid profile-field-grid">
+            <label><span>{t("dateOfBirth")}</span><input type="date" value={draft.date_of_birth} max={dateKey(new Date())} onChange={(event) => setDraft({ ...draft, date_of_birth: event.target.value })} required /></label>
+            <label><span>{t("birthTime")}</span><input type="time" value={draft.birth_time?.slice(0, 5) ?? ""} onChange={(event) => setDraft({ ...draft, birth_time: event.target.value || null })} /></label>
+            <label><span>{t("bloodType")}</span><select value={draft.blood_type ?? ""} onChange={(event) => setDraft({ ...draft, blood_type: event.target.value ? event.target.value as BloodType : null })}><option value="">{t("notSpecified")}</option>{BLOOD_TYPES.map((type) => <option value={type} key={type}>{type}</option>)}</select></label>
+            <label><span>{t("birthWeightKg")}</span><input inputMode="decimal" type="number" min="0.2" max="10" step="0.001" value={draft.birth_weight_kg ?? ""} onChange={(event) => setDraft({ ...draft, birth_weight_kg: event.target.value ? Number(event.target.value) : null })} placeholder="3.200" /></label>
+          </div>
+          <fieldset className="gestational-fields"><legend>{t("gestationalAge")}</legend><div className="form-grid profile-field-grid"><label><span>{t("completedWeeks")}</span><input inputMode="numeric" type="number" min="20" max="45" step="1" value={draft.gestational_weeks ?? ""} onChange={(event) => setDraft({ ...draft, gestational_weeks: event.target.value ? Number(event.target.value) : null, gestational_days: event.target.value ? draft.gestational_days : null })} placeholder="39" /></label><label><span>{t("extraDays")}</span><input inputMode="numeric" type="number" min="0" max="6" step="1" value={draft.gestational_days ?? ""} disabled={draft.gestational_weeks == null} onChange={(event) => setDraft({ ...draft, gestational_days: event.target.value ? Number(event.target.value) : null })} placeholder="0" /></label></div></fieldset>
           <label><span>{t("timeZone")}</span><select value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}><option value="Asia/Hong_Kong">{t("hongKong")}</option></select></label>
           <button className="primary-button" type="submit" disabled={busy || !draft.name.trim()}>{busy ? t("saving") : t("saveProfile")}</button>
         </form>
       ) : (
         <div className="panel profile-summary">
-          <div><span>{t("profileSaved")}</span><strong>{profile.name}</strong><small>{t("girl")} · {t("born", { date: formatShortDate(profile.date_of_birth, locale) })} · {t("hongKong")}</small></div>
+          <div><span>{t("profileSaved")}</span><strong>{profile.name}</strong><small>{t("girl")} · {t("born", { date: formatShortDate(profile.date_of_birth, locale) })} · {t("hongKong")}</small>{birthDetails ? <small className="profile-birth-details">{birthDetails}</small> : null}</div>
           <button className="small-action" type="button" onClick={() => { setDraft(profile); setEditing(true); }}>{t("edit")}</button>
         </div>
       )}
@@ -1502,45 +1534,64 @@ function MetricCard({ label, value, change }: { label: string; value: string; ch
 }
 
 function GrowthCurve({
+  dateOfBirth,
   rows,
   metric,
   label,
   unit,
   digits,
 }: {
+  dateOfBirth: string;
   rows: Measurement[];
-  metric: "weight_kg" | "height_cm";
+  metric: WhoGrowthMetric;
   label: string;
   unit: string;
   digits: number;
 }) {
-  const { locale, t } = useI18n();
-  const values = rows.flatMap((row) => row[metric] == null ? [] : [{ value: row[metric], date: row.measured_at }]);
-  if (!values.length) return null;
-  const rawValues = values.map((item) => item.value);
-  const min = Math.min(...rawValues);
-  const max = Math.max(...rawValues);
-  const range = max - min || 1;
-  const coordinates = values.map((item, index) => ({
-    x: values.length === 1 ? 160 : 16 + (index / (values.length - 1)) * 288,
-    y: values.length === 1 ? 65 : 100 - ((item.value - min) / range) * 70,
+  const { t } = useI18n();
+  const field = metric === "weight" ? "weight_kg" : "height_cm";
+  const measurements = rows.flatMap((row) => {
+    const value = row[field];
+    const age = ageInMonths(dateOfBirth, row.measured_at);
+    return value == null || age < 0 || age > 60 ? [] : [{ value, age, date: row.measured_at }];
+  });
+  if (!measurements.length) return null;
+  const latest = measurements.at(-1)!;
+  const chartMaxAge = Math.min(60, Math.max(12, Math.ceil(Math.max(...measurements.map((item) => item.age)) + 3)));
+  const ages = Array.from({ length: chartMaxAge + 1 }, (_, month) => month);
+  const referenceCurves = WHO_PERCENTILE_CURVES.map((curve) => ({
+    ...curve,
+    values: ages.flatMap((age) => {
+      const value = whoReferenceValue(metric, age, curve.z);
+      return value == null ? [] : [{ age, value }];
+    }),
   }));
-  const points = coordinates.map(({ x, y }) => `${x},${y}`).join(" ");
-  const area = `M ${coordinates.map(({ x, y }) => `${x} ${y}`).join(" L ")} L ${coordinates.at(-1)!.x} 118 L ${coordinates[0].x} 118 Z`;
-  const color = metric === "weight_kg" ? "#d86f59" : "#4f8ca7";
-  const gradientId = `growth-fill-${metric}`;
-  const latest = values.at(-1)!;
+  const allValues = [...measurements.map((item) => item.value), ...referenceCurves.flatMap((curve) => curve.values.map((item) => item.value))];
+  const rawMin = Math.min(...allValues);
+  const rawMax = Math.max(...allValues);
+  const padding = (rawMax - rawMin || 1) * 0.08;
+  const min = rawMin - padding;
+  const max = rawMax + padding;
+  const xFor = (age: number) => 16 + (age / chartMaxAge) * 276;
+  const yFor = (value: number) => 106 - ((value - min) / (max - min)) * 86;
+  const measurementCoordinates = measurements.map((item) => ({ x: xFor(item.age), y: yFor(item.value) }));
+  const measurementPoints = measurementCoordinates.map(({ x, y }) => `${x},${y}`).join(" ");
+  const color = metric === "weight" ? "#d86f59" : "#4f8ca7";
+  const latestPercentile = formatWhoPercentile(whoPercentile(metric, dateOfBirth, latest.date, latest.value));
   return (
     <article className="panel growth-curve-card">
-      <div className="growth-curve-heading"><span>{label}</span><strong>{latest.value.toFixed(digits)} {unit}</strong></div>
-      <svg className="growth-curve" viewBox="0 0 320 125" role="img" aria-label={t("trendFrom", { start: values[0].value, end: latest.value })}>
-        <defs><linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".24"/><stop offset="1" stopColor={color} stopOpacity="0"/></linearGradient></defs>
-        {[30, 65, 100].map((y) => <line key={y} x1="16" x2="304" y1={y} y2={y} stroke="#eadfd8" strokeWidth="1" />)}
-        <path d={area} fill={`url(#${gradientId})`} />
-        {values.length > 1 ? <polyline points={points} fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
-        {coordinates.map(({ x, y }, index) => <circle key={`${values[index].date}-${values[index].value}`} cx={x} cy={y} r="4" fill="#fff" stroke={color} strokeWidth="3" />)}
+      <div className="growth-curve-heading"><span>{label}</span><div><strong>{latest.value.toFixed(digits)} {unit}</strong>{latestPercentile ? <small>{t("whoPercentile", { percent: latestPercentile })}</small> : null}</div></div>
+      <svg className="growth-curve" viewBox="0 0 320 120" role="img" aria-label={`${label}: ${latestPercentile ? t("whoPercentile", { percent: latestPercentile }) : latest.value}`}>
+        {[20, 63, 106].map((y) => <line key={y} x1="16" x2="292" y1={y} y2={y} stroke="#eee5df" strokeWidth="1" />)}
+        {referenceCurves.map((curve) => {
+          const referencePoints = curve.values.map((item) => `${xFor(item.age)},${yFor(item.value)}`).join(" ");
+          const last = curve.values.at(-1);
+          return <g key={curve.percentile}><polyline points={referencePoints} fill="none" stroke={curve.percentile === 50 ? "#9f8a80" : "#c9bbb4"} strokeWidth={curve.percentile === 50 ? "1.8" : "1.1"} strokeDasharray={curve.percentile === 50 ? undefined : "3 3"} /><text x="297" y={(last ? yFor(last.value) : 0) + 3} fill="#8c7a72" fontSize="7" fontWeight="700">{curve.percentile}%</text></g>;
+        })}
+        {measurements.length > 1 ? <polyline points={measurementPoints} fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        {measurementCoordinates.map(({ x, y }, index) => <circle key={`${measurements[index].date}-${measurements[index].value}`} cx={x} cy={y} r="4" fill="#fff" stroke={color} strokeWidth="3" />)}
       </svg>
-      <div className="growth-curve-footer"><span>{formatCurveDate(values[0].date, locale)}</span><span>{formatCurveDate(latest.date, locale)}</span></div>
+      <div className="growth-curve-footer"><span>{t("monthsShort", { count: 0 })}</span><span>{t("monthsShort", { count: chartMaxAge })}</span></div>
     </article>
   );
 }
@@ -1592,10 +1643,6 @@ function sumMilk(events: BabyEvent[]) {
 
 function formatWeekday(date: string, locale: string) {
   return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(`${date}T12:00:00`));
-}
-
-function formatCurveDate(value: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(value));
 }
 
 function formatWeekHeading(dates: string[], locale: string) {

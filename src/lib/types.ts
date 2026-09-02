@@ -4,6 +4,7 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export type MilkType = "formula" | "cow_milk" | "breast_milk" | "breastfeeding";
 export type DiaperType = "wee" | "poo" | "both";
 export type ScheduleItemType = "school" | "doctor" | "important";
+export type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
 
 export interface BabyProfile {
   id: string;
@@ -11,6 +12,11 @@ export interface BabyProfile {
   name: string;
   gender: "female" | "male" | "other" | "unknown";
   date_of_birth: string;
+  blood_type: BloodType | null;
+  birth_weight_kg: number | null;
+  birth_time: string | null;
+  gestational_weeks: number | null;
+  gestational_days: number | null;
   timezone: string;
   created_at: string;
   updated_at: string;
