@@ -15,24 +15,24 @@ export function dayBounds(date: string): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-export function formatTime(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+export function formatTime(value: string, locale = "en-US"): string {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
   }).format(new Date(value));
 }
 
-export function formatShortDate(value: string): string {
-  return new Intl.DateTimeFormat("en-HK", {
+export function formatShortDate(value: string, locale = "en-HK"): string {
+  return new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(new Date(value));
 }
 
-export function formatDayHeading(value: string): string {
-  return new Intl.DateTimeFormat("en-HK", {
+export function formatDayHeading(value: string, locale = "en-HK"): string {
+  return new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -67,17 +67,17 @@ export function weekDates(date: string): string[] {
   return Array.from({ length: 7 }, (_, index) => shiftDate(monday, index));
 }
 
-export function formatScheduleTime(value: string | null): string {
-  if (!value) return "All day";
+export function formatScheduleTime(value: string | null, locale = "en-US", allDay = "All day"): string {
+  if (!value) return allDay;
   const [hour = "0", minute = "0"] = value.split(":");
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   }).format(new Date(2000, 0, 1, Number(hour), Number(minute)));
 }
 
-export function ageLabel(dateOfBirth: string, now = new Date()): string {
+export function ageLabel(dateOfBirth: string, now = new Date(), language: "en" | "zh-Hant" = "en"): string {
   const birth = new Date(`${dateOfBirth}T00:00:00`);
   let months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
   let anchor = new Date(birth);
@@ -90,18 +90,22 @@ export function ageLabel(dateOfBirth: string, now = new Date()): string {
   }
 
   const days = Math.max(0, Math.floor((now.getTime() - anchor.getTime()) / 86_400_000));
+  if (language === "zh-Hant") return `${months} 個月 ${days} 日`;
   const monthText = `${months} month${months === 1 ? "" : "s"}`;
   const dayText = `${days} day${days === 1 ? "" : "s"}`;
   return `${monthText}, ${dayText}`;
 }
 
-export function elapsedLabel(value: string, now = new Date()): string {
+export function elapsedLabel(value: string, now = new Date(), language: "en" | "zh-Hant" = "en"): string {
   const minutes = Math.max(0, Math.floor((now.getTime() - new Date(value).getTime()) / 60_000));
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return language === "zh-Hant" ? "剛剛" : "just now";
+  if (minutes < 60) return language === "zh-Hant" ? `${minutes} 分鐘前` : `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
-  if (hours < 24) return remainder ? `${hours}h ${remainder}m ago` : `${hours}h ago`;
+  if (hours < 24) {
+    if (language === "zh-Hant") return remainder ? `${hours} 小時 ${remainder} 分鐘前` : `${hours} 小時前`;
+    return remainder ? `${hours}h ${remainder}m ago` : `${hours}h ago`;
+  }
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return language === "zh-Hant" ? `${days} 日前` : `${days}d ago`;
 }

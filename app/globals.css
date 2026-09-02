@@ -944,6 +944,32 @@ textarea {
   gap: 14px;
 }
 
+.language-setting {
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+
+.language-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.7fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.language-select > span {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.language-select select {
+  min-height: 44px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 0.88rem;
+}
+
 .profile-summary {
   display: flex;
   align-items: center;
@@ -1240,12 +1266,43 @@ code {
 
 .loading-screen,
 .login-shell {
+  position: relative;
   display: grid;
   min-height: 100vh;
   place-items: center;
   align-content: center;
   padding: 24px;
   text-align: center;
+}
+
+.pin-language {
+  position: fixed;
+  z-index: 2;
+  top: calc(14px + env(safe-area-inset-top));
+  right: 14px;
+  width: min(190px, calc(100% - 28px));
+  padding: 7px 9px;
+  border: 1px solid rgba(99, 73, 64, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 253, 251, 0.88);
+  box-shadow: 0 8px 24px rgba(87, 57, 47, 0.07);
+  backdrop-filter: blur(12px);
+}
+
+.language-select.compact {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.language-select.compact > span {
+  font-size: 0.68rem;
+}
+
+.language-select.compact select {
+  min-height: 38px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  font-size: 0.78rem;
 }
 
 .loading-bubble,

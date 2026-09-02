@@ -17,6 +17,7 @@ import {
   weekDates,
 } from "@/src/lib/date";
 import { unlockHousehold } from "@/src/lib/household-auth";
+import { I18nProvider, useI18n, type TranslationKey } from "@/src/lib/i18n";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-browser";
 import type {
   BabyEvent,
@@ -34,17 +35,17 @@ import type {
 
 type Tab = "today" | "week" | "history" | "growth" | "settings";
 
-const EVENT_META: Record<EventType, { emoji: string; label: string; color: string }> = {
-  milk: { emoji: "🍼", label: "Milk", color: "peach" },
-  food: { emoji: "🥣", label: "Food", color: "sun" },
-  diaper: { emoji: "🧷", label: "Diaper", color: "sage" },
-  shower: { emoji: "🚿", label: "Shower", color: "sky" },
+const EVENT_META: Record<EventType, { emoji: string; labelKey: TranslationKey; color: string }> = {
+  milk: { emoji: "🍼", labelKey: "milk", color: "peach" },
+  food: { emoji: "🥣", labelKey: "food", color: "sun" },
+  diaper: { emoji: "🧷", labelKey: "diaper", color: "sage" },
+  shower: { emoji: "🚿", labelKey: "shower", color: "sky" },
 };
 
-const SCHEDULE_META: Record<ScheduleItemType, { emoji: string; label: string; color: string }> = {
-  school: { emoji: "🎒", label: "School", color: "schedule-school" },
-  doctor: { emoji: "🩺", label: "Doctor", color: "schedule-doctor" },
-  important: { emoji: "⭐", label: "Important", color: "schedule-important" },
+const SCHEDULE_META: Record<ScheduleItemType, { emoji: string; labelKey: TranslationKey; color: string }> = {
+  school: { emoji: "🎒", labelKey: "school", color: "schedule-school" },
+  doctor: { emoji: "🩺", labelKey: "doctor", color: "schedule-doctor" },
+  important: { emoji: "⭐", labelKey: "important", color: "schedule-important" },
 };
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
@@ -117,6 +118,11 @@ function makeDemoSchedule(): ScheduleItem[] {
 }
 
 export function BabyTracker() {
+  return <I18nProvider><BabyTrackerApp /></I18nProvider>;
+}
+
+function BabyTrackerApp() {
+  const { language, locale, t } = useI18n();
   const configured = hasSupabaseConfig();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
@@ -440,7 +446,7 @@ export function BabyTracker() {
     }
     const saved = await addEvent({ event_type: type, occurred_at: new Date().toISOString() });
     if (saved) {
-      setToast({ event: saved, message: `${EVENT_META[type].label} saved at ${formatTime(saved.occurred_at)}` });
+      setToast({ event: saved, message: t("savedAt", { type: t(EVENT_META[type].labelKey), time: formatTime(saved.occurred_at, locale) }) });
     }
   }
 
@@ -448,7 +454,7 @@ export function BabyTracker() {
     const saved = await addEvent(draft);
     if (!saved) return;
     setQuickEventType(null);
-    setToast({ event: saved, message: `${EVENT_META[saved.event_type].label} saved at ${formatTime(saved.occurred_at)}` });
+    setToast({ event: saved, message: t("savedAt", { type: t(EVENT_META[saved.event_type].labelKey), time: formatTime(saved.occurred_at, locale) }) });
   }
 
   async function updateEvent(event: BabyEvent) {
@@ -634,7 +640,7 @@ export function BabyTracker() {
   if (!authChecked) return <LoadingScreen />;
   if (configured && !session) return <PinScreen />;
   if (loading) return <LoadingScreen />;
-  if (!profile) return <LoadingScreen label="Preparing her profile…" />;
+  if (!profile) return <LoadingScreen label={t("preparingProfile")} />;
 
   const today = dateKey(new Date());
   const todayEvents = events.filter((event) => dateKey(event.occurred_at) === today);
@@ -647,18 +653,18 @@ export function BabyTracker() {
     <main className="app-shell">
       <header className="hero">
         <div className="hero-profile">
-          <p className="eyebrow">Baby record</p>
+          <p className="eyebrow">{t("babyRecord")}</p>
           <h1>{profile.name}</h1>
-          <p className="baby-age">Girl · {ageLabel(profile.date_of_birth)}</p>
+          <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}</p>
         </div>
         <div className="now-panel">
           <div className={`status-pill ${realtimeStatus === "connected" ? "live" : ""}`}>
             <span className="status-dot" />
-            {realtimeStatus === "connected" ? "Live" : realtimeStatus === "connecting" ? "Syncing" : "Offline"}
+            {realtimeStatus === "connected" ? t("live") : realtimeStatus === "connecting" ? t("syncing") : t("offline")}
           </div>
           <div className="now-copy">
-            <span>{formatCurrentDate(now)}</span>
-            <time dateTime={now.toISOString()}>{formatCurrentTime(now)}</time>
+            <span>{formatCurrentDate(now, locale)}</span>
+            <time dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
           </div>
         </div>
       </header>
@@ -666,7 +672,7 @@ export function BabyTracker() {
       {error ? (
         <div className="error-banner" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} aria-label="Dismiss error">×</button>
+          <button type="button" onClick={() => setError(null)} aria-label={t("dismissError")}>×</button>
         </div>
       ) : null}
 
@@ -714,12 +720,12 @@ export function BabyTracker() {
         ) : null}
       </section>
 
-      <nav className="bottom-nav" aria-label="Primary navigation">
-        <NavButton active={tab === "today"} icon="⌂" label="Today" onClick={() => setTab("today")} />
-        <NavButton active={tab === "week"} icon="▦" label="Week" onClick={() => setTab("week")} />
-        <NavButton active={tab === "history"} icon="◫" label="History" onClick={() => setTab("history")} />
-        <NavButton active={tab === "growth"} icon="↗" label="Growth" onClick={() => setTab("growth")} />
-        <NavButton active={tab === "settings"} icon="⚙" label="Settings" onClick={() => setTab("settings")} />
+      <nav className="bottom-nav" aria-label={t("primaryNavigation")}>
+        <NavButton active={tab === "today"} icon="⌂" label={t("today")} onClick={() => setTab("today")} />
+        <NavButton active={tab === "week"} icon="▦" label={t("week")} onClick={() => setTab("week")} />
+        <NavButton active={tab === "history"} icon="◫" label={t("history")} onClick={() => setTab("history")} />
+        <NavButton active={tab === "growth"} icon="↗" label={t("growth")} onClick={() => setTab("growth")} />
+        <NavButton active={tab === "settings"} icon="⚙" label={t("settings")} onClick={() => setTab("settings")} />
       </nav>
 
       {editingEvent ? (
@@ -767,10 +773,10 @@ export function BabyTracker() {
 
       {toast ? (
         <div className="toast" role="status">
-          <div><strong>Saved</strong><span>{toast.message}</span></div>
-          <button type="button" onClick={() => void deleteEvent(toast.event.id)}>Undo</button>
-          <button type="button" onClick={() => { setEditingEvent(toast.event); setToast(null); }}>Details</button>
-          <button className="toast-close" type="button" onClick={() => setToast(null)} aria-label="Dismiss">×</button>
+          <div><strong>{t("saved")}</strong><span>{toast.message}</span></div>
+          <button type="button" onClick={() => void deleteEvent(toast.event.id)}>{t("undo")}</button>
+          <button type="button" onClick={() => { setEditingEvent(toast.event); setToast(null); }}>{t("details")}</button>
+          <button className="toast-close" type="button" onClick={() => setToast(null)} aria-label={t("close")}>×</button>
         </div>
       ) : null}
     </main>
@@ -796,20 +802,21 @@ function TodayView({
   onDelete: (id: string) => Promise<void>;
   schedule: ScheduleItem[];
 }) {
+  const { language, t } = useI18n();
   const milkEvents = events.filter((event) => event.event_type === "milk");
   const totalMilk = sumMilk(events);
   return (
     <>
-      <section className="last-cards" aria-label="Latest feeding">
-        <div className="last-card"><span>Last milk</span><strong>{latestMilk ? elapsedLabel(latestMilk.occurred_at) : "No record"}</strong></div>
-        <div className="last-card"><span>Last food</span><strong>{latestFood ? elapsedLabel(latestFood.occurred_at) : "No record"}</strong></div>
-        <div className="last-card milk-total-card"><div><span>Today&apos;s milk</span><strong>{totalMilk} ml</strong></div><small>{milkEvents.length} bottle{milkEvents.length === 1 ? "" : "s"} recorded</small></div>
+      <section className="last-cards" aria-label={t("latestFeeding")}>
+        <div className="last-card"><span>{t("lastMilk")}</span><strong>{latestMilk ? elapsedLabel(latestMilk.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
+        <div className="last-card"><span>{t("lastFood")}</span><strong>{latestFood ? elapsedLabel(latestFood.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
+        <div className="last-card milk-total-card"><div><span>{t("todaysMilk")}</span><strong>{totalMilk} ml</strong></div><small>{t("bottlesRecorded", { count: milkEvents.length })}</small></div>
       </section>
 
       {schedule.length ? <TodaySchedule items={schedule} /> : null}
 
       <section>
-        <div className="section-title"><div><p className="eyebrow">Quick record</p><h2>What happened?</h2></div><span>Add the important details</span></div>
+        <div className="section-title"><div><p className="eyebrow">{t("quickRecord")}</p><h2>{t("whatHappened")}</h2></div><span>{t("addImportantDetails")}</span></div>
         <div className="quick-grid">
           {(Object.keys(EVENT_META) as EventType[]).map((type) => {
             const meta = EVENT_META[type];
@@ -822,8 +829,8 @@ function TodayView({
                 onClick={() => onQuickAdd(type)}
               >
                 <span className="quick-emoji" aria-hidden="true">{meta.emoji}</span>
-                <strong>{meta.label}</strong>
-                <small>{type === "shower" ? "Record now" : "Add details"}</small>
+                <strong>{t(meta.labelKey)}</strong>
+                <small>{type === "shower" ? t("recordNow") : t("addDetails")}</small>
               </button>
             );
           })}
@@ -831,9 +838,9 @@ function TodayView({
       </section>
 
       <section className="timeline-section">
-        <div className="section-title"><div><p className="eyebrow">Today</p><h2>{events.length} records</h2></div></div>
+        <div className="section-title"><div><p className="eyebrow">{t("today")}</p><h2>{t("recordCount", { count: events.length })}</h2></div></div>
         <SummaryCounts events={events} />
-        <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty="Nothing recorded today yet." />
+        <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty={t("nothingToday")} />
       </section>
     </>
   );
@@ -852,33 +859,35 @@ function HistoryView({
   onEdit: (event: BabyEvent) => void;
   onDelete: (id: string) => Promise<void>;
 }) {
+  const { locale, t } = useI18n();
   const today = dateKey(new Date());
   return (
     <section>
-      <div className="section-title"><div><p className="eyebrow">History</p><h2>{formatDayHeading(selectedDate)}</h2></div></div>
+      <div className="section-title"><div><p className="eyebrow">{t("history")}</p><h2>{formatDayHeading(selectedDate, locale)}</h2></div></div>
       <div className="date-switcher">
-        <button type="button" onClick={() => onDateChange(shiftDate(selectedDate, -1))} aria-label="Previous day">‹</button>
+        <button type="button" onClick={() => onDateChange(shiftDate(selectedDate, -1))} aria-label={t("previousDay")}>‹</button>
         <label>
-          <span className="sr-only">Choose date</span>
+          <span className="sr-only">{t("chooseDate")}</span>
           <input type="date" value={selectedDate} max={today} onChange={(event) => onDateChange(event.target.value)} />
         </label>
-        <button type="button" disabled={selectedDate >= today} onClick={() => onDateChange(shiftDate(selectedDate, 1))} aria-label="Next day">›</button>
+        <button type="button" disabled={selectedDate >= today} onClick={() => onDateChange(shiftDate(selectedDate, 1))} aria-label={t("nextDay")}>›</button>
       </div>
       <SummaryCounts events={events} />
       <DayInsights events={events} />
-      <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty="No records for this day." />
+      <EventList events={events} onEdit={onEdit} onDelete={onDelete} empty={t("noRecordsDay")} />
     </section>
   );
 }
 
 function TodaySchedule({ items }: { items: ScheduleItem[] }) {
+  const { locale, t } = useI18n();
   return (
-    <section className="today-schedule" aria-label="Today's timetable">
-      <div className="today-schedule-heading"><div><p className="eyebrow">Today&apos;s timetable</p><h2>Don&apos;t forget</h2></div><span>{items.length} planned</span></div>
+    <section className="today-schedule" aria-label={t("todaysTimetable")}>
+      <div className="today-schedule-heading"><div><p className="eyebrow">{t("todaysTimetable")}</p><h2>{t("dontForget")}</h2></div><span>{t("plannedCount", { count: items.length })}</span></div>
       <div className="today-schedule-list">
         {[...items].sort(sortScheduleItems).map((item) => {
           const meta = SCHEDULE_META[item.item_type];
-          return <div className="today-schedule-item" key={item.id}><span className={`schedule-icon ${meta.color}`}>{meta.emoji}</span><div><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time)}{item.note ? ` · ${item.note}` : ""}</small></div></div>;
+          return <div className="today-schedule-item" key={item.id}><span className={`schedule-icon ${meta.color}`}>{meta.emoji}</span><div><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time, locale, t("allDay"))}{item.note ? ` · ${item.note}` : ""}</small></div></div>;
         })}
       </div>
     </section>
@@ -896,6 +905,7 @@ function WeekView({
   onAdd: (date: string) => void;
   onEdit: (item: ScheduleItem) => void;
 }) {
+  const { locale, t } = useI18n();
   const today = dateKey(new Date());
   const [week, setWeek] = useState(() => startOfWeek(today));
   const dates = weekDates(week);
@@ -903,13 +913,13 @@ function WeekView({
   return (
     <section>
       <div className="section-title schedule-title">
-        <div><p className="eyebrow">Baby timetable</p><h2>Harper&apos;s week</h2></div>
-        <button className="small-action" type="button" disabled={busy} onClick={() => onAdd(today)}>+ Add</button>
+        <div><p className="eyebrow">{t("babyTimetable")}</p><h2>{t("harpersWeek")}</h2></div>
+        <button className="small-action" type="button" disabled={busy} onClick={() => onAdd(today)}>{t("add")}</button>
       </div>
       <div className="week-switcher">
-        <button type="button" onClick={() => setWeek(shiftDate(week, -7))} aria-label="Previous week">‹</button>
-        <button className="week-label" type="button" onClick={() => setWeek(startOfWeek(today))}>{formatWeekHeading(dates)}</button>
-        <button type="button" onClick={() => setWeek(shiftDate(week, 7))} aria-label="Next week">›</button>
+        <button type="button" onClick={() => setWeek(shiftDate(week, -7))} aria-label={t("previousWeek")}>‹</button>
+        <button className="week-label" type="button" onClick={() => setWeek(startOfWeek(today))}>{formatWeekHeading(dates, locale)}</button>
+        <button type="button" onClick={() => setWeek(shiftDate(week, 7))} aria-label={t("nextWeek")}>›</button>
       </div>
       <div className="week-list">
         {dates.map((date) => {
@@ -918,9 +928,9 @@ function WeekView({
           return (
             <article className={`week-day ${isToday ? "today" : ""}`} key={date}>
               <div className="week-day-date">
-                <span>{formatWeekday(date)}</span>
+                <span>{formatWeekday(date, locale)}</span>
                 <strong>{new Date(`${date}T12:00:00`).getDate()}</strong>
-                {isToday ? <small>Today</small> : null}
+                {isToday ? <small>{t("today")}</small> : null}
               </div>
               <div className="week-day-content">
                 {dayItems.length ? dayItems.map((item) => {
@@ -928,13 +938,13 @@ function WeekView({
                   return (
                     <button className={`schedule-row ${meta.color}`} type="button" key={`${item.id}-${date}`} onClick={() => onEdit(item)}>
                       <span className="schedule-row-emoji">{meta.emoji}</span>
-                      <span className="schedule-row-copy"><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time)}{item.repeats_weekly ? " · Every week" : ""}{item.note ? ` · ${item.note}` : ""}</small></span>
+                      <span className="schedule-row-copy"><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time, locale, t("allDay"))}{item.repeats_weekly ? ` · ${t("everyWeek")}` : ""}{item.note ? ` · ${item.note}` : ""}</small></span>
                       <span className="chevron">›</span>
                     </button>
                   );
-                }) : <button className="empty-day" type="button" onClick={() => onAdd(date)}>Nothing planned <span>+</span></button>}
+                }) : <button className="empty-day" type="button" onClick={() => onAdd(date)}>{t("nothingPlanned")} <span>+</span></button>}
               </div>
-              <button className="day-add" type="button" disabled={busy} onClick={() => onAdd(date)} aria-label={`Add timetable entry on ${date}`}>+</button>
+              <button className="day-add" type="button" disabled={busy} onClick={() => onAdd(date)} aria-label={t("addTimetableOn", { date })}>+</button>
             </article>
           );
         })}
@@ -958,8 +968,9 @@ function ScheduleEditor({
   onSave: (draft: ScheduleDraft) => Promise<void>;
   onDelete?: () => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [type, setType] = useState<ScheduleItemType>(item?.item_type ?? "school");
-  const [title, setTitle] = useState(item?.title ?? "School");
+  const [title, setTitle] = useState(item?.title ?? t("school"));
   const [eventDate, setEventDate] = useState(item?.event_date ?? defaultDate);
   const [eventTime, setEventTime] = useState(item?.event_time?.slice(0, 5) ?? "");
   const [repeatsWeekly, setRepeatsWeekly] = useState(item?.repeats_weekly ?? true);
@@ -968,9 +979,9 @@ function ScheduleEditor({
   const meta = SCHEDULE_META[type];
 
   function chooseType(nextType: ScheduleItemType) {
-    const currentDefault = SCHEDULE_META[type].label;
+    const currentDefault = t(SCHEDULE_META[type].labelKey);
     setType(nextType);
-    if (!title.trim() || title === currentDefault) setTitle(SCHEDULE_META[nextType].label);
+    if (!title.trim() || title === currentDefault) setTitle(t(SCHEDULE_META[nextType].labelKey));
     if (!item) setRepeatsWeekly(nextType === "school");
   }
 
@@ -978,22 +989,22 @@ function ScheduleEditor({
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="schedule-editor-title">
         <div className="sheet-handle" />
-        <div className="sheet-title"><div className={`schedule-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">{item ? "Edit timetable" : "New timetable"}</p><h2 id="schedule-editor-title">{item ? item.title : "Add to her week"}</h2></div><button type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="sheet-title"><div className={`schedule-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">{item ? t("editTimetable") : t("newTimetable")}</p><h2 id="schedule-editor-title">{item ? item.title : t("addToWeek")}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
         <form onSubmit={(event) => {
           event.preventDefault();
           if (!title.trim()) return;
           void onSave({ item_type: type, title: title.trim(), event_date: eventDate, event_time: eventTime || null, repeats_weekly: repeatsWeekly, note: note.trim() || null });
         }}>
-          <fieldset className="schedule-type-picker"><legend>What is it?</legend><div>{(Object.keys(SCHEDULE_META) as ScheduleItemType[]).map((option) => <button className={type === option ? "selected" : ""} type="button" key={option} onClick={() => chooseType(option)} aria-pressed={type === option}><span>{SCHEDULE_META[option].emoji}</span>{SCHEDULE_META[option].label}</button>)}</div></fieldset>
-          <label><span>Name</span><input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder="School" required /></label>
+          <fieldset className="schedule-type-picker"><legend>{t("whatIsIt")}</legend><div>{(Object.keys(SCHEDULE_META) as ScheduleItemType[]).map((option) => <button className={type === option ? "selected" : ""} type="button" key={option} onClick={() => chooseType(option)} aria-pressed={type === option}><span>{SCHEDULE_META[option].emoji}</span>{t(SCHEDULE_META[option].labelKey)}</button>)}</div></fieldset>
+          <label><span>{t("name")}</span><input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder={t("school")} required /></label>
           <div className="form-grid schedule-date-time">
-            <label><span>Date</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required /></label>
-            <label><span>Time (optional)</span><input type="time" value={eventTime} onChange={(event) => setEventTime(event.target.value)} /></label>
+            <label><span>{t("date")}</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required /></label>
+            <label><span>{t("timeOptional")}</span><input type="time" value={eventTime} onChange={(event) => setEventTime(event.target.value)} /></label>
           </div>
-          <label className="repeat-toggle"><input type="checkbox" checked={repeatsWeekly} onChange={(event) => setRepeatsWeekly(event.target.checked)} /><span><strong>Repeat every week</strong><small>Useful for school and regular activities</small></span></label>
-          <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="What to bring, address, or other detail" /></label>
-          <button className="primary-button" type="submit" disabled={busy || !title.trim()}>{busy ? "Saving…" : item ? "Save changes" : "Add to timetable"}</button>
-          {onDelete ? <button className="danger-button" type="button" disabled={busy} onClick={() => { if (confirmingDelete) void onDelete(); else setConfirmingDelete(true); }}>{confirmingDelete ? "Tap again to delete" : "Delete timetable entry"}</button> : null}
+          <label className="repeat-toggle"><input type="checkbox" checked={repeatsWeekly} onChange={(event) => setRepeatsWeekly(event.target.checked)} /><span><strong>{t("repeatEveryWeek")}</strong><small>{t("repeatHelp")}</small></span></label>
+          <label><span>{t("noteOptional")}</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("scheduleNotePlaceholder")} /></label>
+          <button className="primary-button" type="submit" disabled={busy || !title.trim()}>{busy ? t("saving") : item ? t("saveChanges") : t("addToTimetable")}</button>
+          {onDelete ? <button className="danger-button" type="button" disabled={busy} onClick={() => { if (confirmingDelete) void onDelete(); else setConfirmingDelete(true); }}>{confirmingDelete ? t("tapAgainDelete") : t("deleteTimetable")}</button> : null}
         </form>
       </section>
     </div>
@@ -1001,24 +1012,26 @@ function ScheduleEditor({
 }
 
 function DayInsights({ events }: { events: BabyEvent[] }) {
+  const { locale, t } = useI18n();
   const milkRows = events.filter((event) => event.event_type === "milk" && event.amount_ml != null);
   const totalMilk = sumMilk(events);
   const averageMilk = milkRows.length ? Math.round(totalMilk / milkRows.length) : null;
   const wetDiapers = events.filter((event) => event.event_type === "diaper" && (event.diaper_type === "wee" || event.diaper_type === "both")).length;
   const pooDiapers = events.filter((event) => event.event_type === "diaper" && (event.diaper_type === "poo" || event.diaper_type === "both")).length;
   const chronological = [...events].sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
-  const activeSpan = chronological.length > 1 ? `${formatTime(chronological[0].occurred_at)}–${formatTime(chronological.at(-1)!.occurred_at)}` : chronological.length ? formatTime(chronological[0].occurred_at) : "—";
+  const activeSpan = chronological.length > 1 ? `${formatTime(chronological[0].occurred_at, locale)}–${formatTime(chronological.at(-1)!.occurred_at, locale)}` : chronological.length ? formatTime(chronological[0].occurred_at, locale) : "—";
   return (
-    <div className="insight-grid" aria-label="Daily insights">
-      <article><span>Milk total</span><strong>{totalMilk} ml</strong><small>{milkRows.length} bottle{milkRows.length === 1 ? "" : "s"}</small></article>
-      <article><span>Avg. bottle</span><strong>{averageMilk == null ? "—" : `${averageMilk} ml`}</strong><small>Recorded amount</small></article>
-      <article><span>Diapers</span><strong>{wetDiapers} wet · {pooDiapers} poo</strong><small>Both counts in each</small></article>
-      <article><span>Recorded span</span><strong>{activeSpan}</strong><small>First to last record</small></article>
+    <div className="insight-grid" aria-label={t("dailyInsights")}>
+      <article><span>{t("milkTotal")}</span><strong>{totalMilk} ml</strong><small>{t("bottlesRecorded", { count: milkRows.length })}</small></article>
+      <article><span>{t("averageBottle")}</span><strong>{averageMilk == null ? "—" : `${averageMilk} ml`}</strong><small>{t("recordedAmount")}</small></article>
+      <article><span>{t("diapers")}</span><strong>{t("diaperBreakdown", { wet: wetDiapers, poo: pooDiapers })}</strong><small>{t("bothCounts")}</small></article>
+      <article><span>{t("recordedSpan")}</span><strong>{activeSpan}</strong><small>{t("firstToLast")}</small></article>
     </div>
   );
 }
 
 function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]; busy: boolean; onAdd: (draft: MeasurementDraft) => Promise<void> }) {
+  const { language, locale, t } = useI18n();
   const [measurementType, setMeasurementType] = useState<"weight" | "height" | null>(null);
   const [date, setDate] = useState(() => toDateTimeLocal());
   const [height, setHeight] = useState("");
@@ -1046,32 +1059,32 @@ function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]
   return (
     <section>
       <div className="section-title">
-        <div><p className="eyebrow">Growth</p><h2>Height & weight</h2></div>
+        <div><p className="eyebrow">{t("growth")}</p><h2>{t("heightAndWeight")}</h2></div>
         <div className="growth-actions">
-          <button className="small-action" type="button" onClick={() => setMeasurementType("weight")}>+ Weight</button>
-          <button className="small-action" type="button" onClick={() => setMeasurementType("height")}>+ Height</button>
+          <button className="small-action" type="button" onClick={() => setMeasurementType("weight")}>+ {t("weight")}</button>
+          <button className="small-action" type="button" onClick={() => setMeasurementType("height")}>+ {t("height")}</button>
         </div>
       </div>
 
       {measurementType ? (
         <form className="panel form-grid" onSubmit={submit}>
-          <div className="form-heading full-field"><strong>Add {measurementType}</strong><button type="button" onClick={() => setMeasurementType(null)}>Cancel</button></div>
-          <label className="full-field"><span>Date and time</span><input type="datetime-local" value={date} max={toDateTimeLocal()} onChange={(event) => setDate(event.target.value)} required /></label>
-          {measurementType === "weight" ? <label className="full-field"><span>Weight (kg)</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.01" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.20" required autoFocus /></label> : null}
-          {measurementType === "height" ? <label className="full-field"><span>Height (cm)</span><input inputMode="decimal" type="number" min="20" max="200" step="0.1" value={height} onChange={(event) => setHeight(event.target.value)} placeholder="70.1" required autoFocus /></label> : null}
-          <label className="full-field"><span>Note (optional)</span><input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder="Measured at home" /></label>
-          <button className="primary-button full-field" type="submit" disabled={busy || (measurementType === "height" ? !height : !weight)}>Save {measurementType}</button>
+          <div className="form-heading full-field"><strong>{t("addMeasurement", { type: t(measurementType) })}</strong><button type="button" onClick={() => setMeasurementType(null)}>{t("cancel")}</button></div>
+          <label className="full-field"><span>{t("dateAndTime")}</span><input type="datetime-local" value={date} max={toDateTimeLocal()} onChange={(event) => setDate(event.target.value)} required /></label>
+          {measurementType === "weight" ? <label className="full-field"><span>{t("weightKg")}</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.01" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.20" required autoFocus /></label> : null}
+          {measurementType === "height" ? <label className="full-field"><span>{t("heightCm")}</span><input inputMode="decimal" type="number" min="20" max="200" step="0.1" value={height} onChange={(event) => setHeight(event.target.value)} placeholder="70.1" required autoFocus /></label> : null}
+          <label className="full-field"><span>{t("noteOptional")}</span><input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder={t("measuredAtHome")} /></label>
+          <button className="primary-button full-field" type="submit" disabled={busy || (measurementType === "height" ? !height : !weight)}>{busy ? t("saving") : t("saveMeasurement", { type: t(measurementType) })}</button>
         </form>
       ) : null}
 
       <div className="growth-cards">
-        <MetricCard label="Latest weight" value={weightRows[0]?.weight_kg != null ? `${weightRows[0].weight_kg.toFixed(2)} kg` : "—"} change={metricChange(weightRows[0]?.weight_kg, weightRows[1]?.weight_kg, "kg", 2)} />
-        <MetricCard label="Latest height" value={heightRows[0]?.height_cm != null ? `${heightRows[0].height_cm.toFixed(1)} cm` : "—"} change={metricChange(heightRows[0]?.height_cm, heightRows[1]?.height_cm, "cm", 1)} />
+        <MetricCard label={t("latestWeight")} value={weightRows[0]?.weight_kg != null ? `${weightRows[0].weight_kg.toFixed(2)} kg` : "—"} change={metricChange(weightRows[0]?.weight_kg, weightRows[1]?.weight_kg, "kg", 2, language)} />
+        <MetricCard label={t("latestHeight")} value={heightRows[0]?.height_cm != null ? `${heightRows[0].height_cm.toFixed(1)} cm` : "—"} change={metricChange(heightRows[0]?.height_cm, heightRows[1]?.height_cm, "cm", 1, language)} />
       </div>
 
       {weightRows.length > 1 ? (
         <div className="panel chart-panel">
-          <div><p className="eyebrow">Trend</p><h3>Weight</h3></div>
+          <div><p className="eyebrow">{t("trend")}</p><h3>{t("weight")}</h3></div>
           <Sparkline values={chronologicalWeights.map((item) => item.weight_kg).filter((value): value is number => value != null)} />
         </div>
       ) : null}
@@ -1079,13 +1092,13 @@ function GrowthView({ measurements, busy, onAdd }: { measurements: Measurement[]
       <div className="measurement-list">
         {newestFirst.length ? newestFirst.map((item) => (
           <article className="measurement-row" key={item.id}>
-            <div><strong>{formatShortDate(item.measured_at)}</strong><span>{formatTime(item.measured_at)}</span></div>
+            <div><strong>{formatShortDate(item.measured_at, locale)}</strong><span>{formatTime(item.measured_at, locale)}</span></div>
             <div className="measurement-values">
               {item.weight_kg != null ? <span>{item.weight_kg.toFixed(2)} kg</span> : null}
               {item.height_cm != null ? <span>{item.height_cm.toFixed(1)} cm</span> : null}
             </div>
           </article>
-        )) : <EmptyState text="Add the first height or weight measurement." />}
+        )) : <EmptyState text={t("noMeasurements")} />}
       </div>
     </section>
   );
@@ -1104,6 +1117,7 @@ function SettingsView({
   onSave: (profile: BabyProfile) => Promise<boolean>;
   onSignOut?: () => void;
 }) {
+  const { locale, t } = useI18n();
   const [draft, setDraft] = useState(profile);
   const [editing, setEditing] = useState(false);
 
@@ -1114,35 +1128,37 @@ function SettingsView({
 
   return (
     <section>
-      <div className="section-title"><div><p className="eyebrow">Settings</p><h2>Baby profile</h2></div></div>
+      <div className="section-title"><div><p className="eyebrow">{t("settings")}</p><h2>{t("babyProfile")}</h2></div></div>
+      <div className="panel language-setting"><LanguageSelect /></div>
       {editing ? (
         <form className="panel settings-form" onSubmit={(event) => void submitProfile(event)}>
-          <div className="form-heading"><strong>Edit profile</strong><button type="button" onClick={() => { setDraft(profile); setEditing(false); }}>Cancel</button></div>
-          <label><span>Name</span><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
-          <label><span>Date of birth</span><input type="date" value={draft.date_of_birth} max={dateKey(new Date())} onChange={(event) => setDraft({ ...draft, date_of_birth: event.target.value })} required /></label>
-          <label><span>Time zone</span><select value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}><option value="Asia/Hong_Kong">Hong Kong</option></select></label>
-          <button className="primary-button" type="submit" disabled={busy || !draft.name.trim()}>{busy ? "Saving…" : "Save profile"}</button>
+          <div className="form-heading"><strong>{t("editProfile")}</strong><button type="button" onClick={() => { setDraft(profile); setEditing(false); }}>{t("cancel")}</button></div>
+          <label><span>{t("name")}</span><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
+          <label><span>{t("dateOfBirth")}</span><input type="date" value={draft.date_of_birth} max={dateKey(new Date())} onChange={(event) => setDraft({ ...draft, date_of_birth: event.target.value })} required /></label>
+          <label><span>{t("timeZone")}</span><select value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}><option value="Asia/Hong_Kong">{t("hongKong")}</option></select></label>
+          <button className="primary-button" type="submit" disabled={busy || !draft.name.trim()}>{busy ? t("saving") : t("saveProfile")}</button>
         </form>
       ) : (
         <div className="panel profile-summary">
-          <div><span>Profile saved</span><strong>{profile.name}</strong><small>Girl · Born {formatShortDate(profile.date_of_birth)} · Hong Kong</small></div>
-          <button className="small-action" type="button" onClick={() => { setDraft(profile); setEditing(true); }}>Edit</button>
+          <div><span>{t("profileSaved")}</span><strong>{profile.name}</strong><small>{t("girl")} · {t("born", { date: formatShortDate(profile.date_of_birth, locale) })} · {t("hongKong")}</small></div>
+          <button className="small-action" type="button" onClick={() => { setDraft(profile); setEditing(true); }}>{t("edit")}</button>
         </div>
       )}
 
       <div className="panel chatgpt-card">
         <div className="chatgpt-mark">✦</div>
-        <div><p className="eyebrow">ChatGPT access</p><h3>Ask about her records</h3><p>Once connected, ChatGPT can privately read Harper&apos;s records and answer questions. It cannot add, edit, or delete anything.</p><span className="connection-note">{configured ? "Not connected yet · one-time setup remains" : "Connect Supabase before enabling ChatGPT"}</span></div>
+        <div><p className="eyebrow">{t("chatgptAccess")}</p><h3>{t("askRecords")}</h3><p>{t("chatgptDescription")}</p><span className="connection-note">{configured ? t("notConnected") : t("connectSupabase")}</span></div>
       </div>
 
-      {!configured ? <div className="setup-note"><strong>Demo mode</strong><p>Your changes are stored only in this browser. Add the Supabase values from <code>.env.example</code> to enable private cloud storage.</p></div> : null}
-      {configured ? <p className="account-line">Household PIN access is active on this device.</p> : null}
-      {onSignOut ? <button className="secondary-button full-width" type="button" onClick={onSignOut}>Lock this device</button> : null}
+      {!configured ? <div className="setup-note"><strong>{t("demoMode")}</strong><p>{t("demoDescription")}</p></div> : null}
+      {configured ? <p className="account-line">{t("pinActive")}</p> : null}
+      {onSignOut ? <button className="secondary-button full-width" type="button" onClick={onSignOut}>{t("lockDevice")}</button> : null}
     </section>
   );
 }
 
 function PinScreen() {
+  const { language, t } = useI18n();
   const supabase = getSupabaseBrowserClient();
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1153,26 +1169,53 @@ function PinScreen() {
     if (!supabase) return;
     setBusy(true);
     setMessage(null);
-    setMessage(await unlockHousehold(supabase, pin));
+    const result = await unlockHousehold(supabase, pin);
+    setMessage(result && language === "zh-Hant" ? localizePinError(result) : result);
     setBusy(false);
   }
 
   return (
     <main className="login-shell">
+      <div className="pin-language"><LanguageSelect compact /></div>
       <div className="login-icon">👶🏻</div>
-      <p className="eyebrow">Harper&apos;s private tracker</p>
-      <h1>Enter household PIN</h1>
-      <p>Use the same PIN on each family phone. No account or email is needed.</p>
+      <p className="eyebrow">{t("privateTracker")}</p>
+      <h1>{t("enterPin")}</h1>
+      <p>{t("pinDescription")}</p>
       <form className="login-form" onSubmit={submit}>
-        <label><span>4-digit PIN</span><input className="pin-input" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="current-password" maxLength={4} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required autoFocus /></label>
+        <label><span>{t("fourDigitPin")}</span><input className="pin-input" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="current-password" maxLength={4} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required autoFocus /></label>
         {message ? <div className="form-error" role="alert">{message}</div> : null}
-        <button className="primary-button" type="submit" disabled={busy || pin.length !== 4}>{busy ? "Opening…" : "Open Harper's records"}</button>
+        <button className="primary-button" type="submit" disabled={busy || pin.length !== 4}>{busy ? t("opening") : t("openRecords")}</button>
       </form>
     </main>
   );
 }
 
+function LanguageSelect({ compact = false }: { compact?: boolean }) {
+  const { language, setLanguage, t } = useI18n();
+  return (
+    <label className={`language-select ${compact ? "compact" : ""}`}>
+      <span>{t("language")}</span>
+      <select value={language} onChange={(event) => setLanguage(event.target.value as "en" | "zh-Hant")} aria-label={t("language")}>
+        <option value="en">{t("english")}</option>
+        <option value="zh-Hant">{t("traditionalChinese")}</option>
+      </select>
+    </label>
+  );
+}
+
+function localizePinError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("too many") || normalized.includes("wait") || normalized.includes("rate")) {
+    return "嘗試次數過多，請稍後再試。";
+  }
+  if (normalized.includes("pin") || normalized.includes("invalid") || normalized.includes("incorrect")) {
+    return "PIN 不正確，請再試一次。";
+  }
+  return "無法開啟 Harper 的記錄，請稍後再試。";
+}
+
 function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; busy: boolean; onClose: () => void; onSave: (draft: EventDraft) => Promise<void> }) {
+  const { t } = useI18n();
   const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocal());
   const [milkType, setMilkType] = useState<MilkType>("formula");
   const [amount, setAmount] = useState("");
@@ -1194,7 +1237,7 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="quick-event-title">
         <div className="sheet-handle" />
-        <div className="sheet-title"><div className={`event-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">New record</p><h2 id="quick-event-title">{meta.label}</h2></div><button type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="sheet-title"><div className={`event-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">{t("newRecord")}</p><h2 id="quick-event-title">{t(meta.labelKey)}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
         <form onSubmit={(event) => {
           event.preventDefault();
           if (!valid) return;
@@ -1209,19 +1252,19 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
           });
         }}>
           {type === "milk" ? <>
-            <fieldset className="amount-picker"><legend>Quick amount</legend><div>{[60, 90, 120, 150, 180, 210].map((value) => <button className={amount === String(value) ? "selected" : ""} type="button" key={value} onClick={() => setAmount(String(value))} aria-pressed={amount === String(value)}>{value}<small>ml</small></button>)}</div></fieldset>
-            <label><span>Amount (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Enter another amount" required /></label>
-            <label><span>Milk type</span><select value={milkType} onChange={(event) => setMilkType(event.target.value as MilkType)}><option value="formula">Formula</option><option value="cow_milk">Cow&apos;s milk</option></select></label>
+            <fieldset className="amount-picker"><legend>{t("quickAmount")}</legend><div>{[60, 90, 120, 150, 180, 210].map((value) => <button className={amount === String(value) ? "selected" : ""} type="button" key={value} onClick={() => setAmount(String(value))} aria-pressed={amount === String(value)}>{value}<small>ml</small></button>)}</div></fieldset>
+            <label><span>{t("amountMl")}</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder={t("anotherAmount")} required /></label>
+            <label><span>{t("milkType")}</span><select value={milkType} onChange={(event) => setMilkType(event.target.value as MilkType)}><option value="formula">{t("formula")}</option><option value="cow_milk">{t("cowsMilk")}</option></select></label>
           </> : null}
-          {type === "food" ? <label><span>What did she eat?</span><textarea rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Banana and oatmeal" required autoFocus /></label> : null}
+          {type === "food" ? <label><span>{t("whatAte")}</span><textarea rows={3} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("foodPlaceholder")} required autoFocus /></label> : null}
           {type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
           {type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
           {type !== "food" ? <>
-            <button className="optional-toggle" type="button" aria-expanded={showNote} onClick={() => setShowNote((current) => !current)}>{showNote ? "− Hide note" : "+ Add note (optional)"}</button>
-            {showNote ? <label><span>Note (optional)</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" autoFocus /></label> : null}
+            <button className="optional-toggle" type="button" aria-expanded={showNote} onClick={() => setShowNote((current) => !current)}>{showNote ? t("hideNote") : t("addNote")}</button>
+            {showNote ? <label><span>{t("noteOptional")}</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("optionalNote")} autoFocus /></label> : null}
           </> : null}
-          <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label>
-          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? "Saving…" : `Save ${meta.label.toLowerCase()}`}</button>
+          <label><span>{t("dateAndTime")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label>
+          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? t("saving") : t("saveEvent", { type: t(meta.labelKey) })}</button>
         </form>
       </section>
     </div>
@@ -1229,19 +1272,22 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
 }
 
 function DiaperTypePicker({ value, onChange }: { value: DiaperType | null; onChange: (value: DiaperType) => void }) {
+  const { t } = useI18n();
   const options: Array<{ value: DiaperType; label: string; emoji: string }> = [
-    { value: "wee", label: "Wee", emoji: "💧" },
-    { value: "poo", label: "Poo", emoji: "💩" },
-    { value: "both", label: "Both", emoji: "💧💩" },
+    { value: "wee", label: t("wee"), emoji: "💧" },
+    { value: "poo", label: t("poo"), emoji: "💩" },
+    { value: "both", label: t("both"), emoji: "💧💩" },
   ];
-  return <fieldset className="diaper-picker"><legend>What was in the diaper?</legend><div>{options.map((option) => <button className={value === option.value ? "selected" : ""} type="button" key={option.value} onClick={() => onChange(option.value)} aria-pressed={value === option.value}><span aria-hidden="true">{option.emoji}</span>{option.label}</button>)}</div></fieldset>;
+  return <fieldset className="diaper-picker"><legend>{t("diaperQuestion")}</legend><div>{options.map((option) => <button className={value === option.value ? "selected" : ""} type="button" key={option.value} onClick={() => onChange(option.value)} aria-pressed={value === option.value}><span aria-hidden="true">{option.emoji}</span>{option.label}</button>)}</div></fieldset>;
 }
 
 function PooLevelPicker({ value, onChange }: { value: number | null; onChange: (value: number) => void }) {
-  return <fieldset className="poo-picker"><legend>Poo level · 1 to 5 (5 is most)</legend><div>{[1, 2, 3, 4, 5].map((level) => <button className={value === level ? "selected" : ""} type="button" key={level} onClick={() => onChange(level)} aria-pressed={value === level}>{level}</button>)}</div></fieldset>;
+  const { t } = useI18n();
+  return <fieldset className="poo-picker"><legend>{t("pooLevel")}</legend><div>{[1, 2, 3, 4, 5].map((level) => <button className={value === level ? "selected" : ""} type="button" key={level} onClick={() => onChange(level)} aria-pressed={value === level}>{level}</button>)}</div></fieldset>;
 }
 
 function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEvent; busy: boolean; onClose: () => void; onSave: (event: BabyEvent) => Promise<void>; onDelete: () => void }) {
+  const { t } = useI18n();
   const [occurredAt, setOccurredAt] = useState(toDateTimeLocal(event.occurred_at));
   const [milkType, setMilkType] = useState<MilkType | "">(event.milk_type ?? "");
   const [amount, setAmount] = useState(event.amount_ml?.toString() ?? "");
@@ -1262,7 +1308,7 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
     <div className="modal-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
       <section className="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-event-title">
         <div className="sheet-handle" />
-        <div className="sheet-title"><div className={`event-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">Edit record</p><h2 id="edit-event-title">{meta.label}</h2></div><button type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="sheet-title"><div className={`event-icon ${meta.color}`}>{meta.emoji}</div><div><p className="eyebrow">{t("editRecord")}</p><h2 id="edit-event-title">{t(meta.labelKey)}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
         <form onSubmit={(formEvent) => {
           formEvent.preventDefault();
           void onSave({
@@ -1275,16 +1321,16 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
             note: note.trim() || null,
           });
         }}>
-          <label><span>Date and time</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(changeEvent) => setOccurredAt(changeEvent.target.value)} required /></label>
+          <label><span>{t("dateAndTime")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(changeEvent) => setOccurredAt(changeEvent.target.value)} required /></label>
           {event.event_type === "milk" ? <>
-            <label><span>Milk type</span><select value={milkType} onChange={(changeEvent) => setMilkType(changeEvent.target.value as MilkType | "")}><option value="">Not specified</option><option value="formula">Formula</option><option value="cow_milk">Cow&apos;s milk</option></select></label>
-            <label><span>Amount (ml)</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(changeEvent) => setAmount(changeEvent.target.value)} placeholder="120" required /></label>
+            <label><span>{t("milkType")}</span><select value={milkType} onChange={(changeEvent) => setMilkType(changeEvent.target.value as MilkType | "")}><option value="">{t("notSpecified")}</option><option value="formula">{t("formula")}</option><option value="cow_milk">{t("cowsMilk")}</option></select></label>
+            <label><span>{t("amountMl")}</span><input inputMode="numeric" type="number" min="1" max="2000" value={amount} onChange={(changeEvent) => setAmount(changeEvent.target.value)} placeholder="120" required /></label>
           </> : null}
           {event.event_type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
           {event.event_type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
-          <label><span>{event.event_type === "food" ? "What did she eat?" : "Note"}</span><textarea rows={3} maxLength={1000} value={note} onChange={(changeEvent) => setNote(changeEvent.target.value)} placeholder={event.event_type === "food" ? "Banana and oatmeal" : "Optional note"} required={event.event_type === "food"} /></label>
-          <button className="primary-button" type="submit" disabled={busy || !valid}>Save changes</button>
-          <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>Delete record</button>
+          <label><span>{event.event_type === "food" ? t("whatAte") : t("note")}</span><textarea rows={3} maxLength={1000} value={note} onChange={(changeEvent) => setNote(changeEvent.target.value)} placeholder={event.event_type === "food" ? t("foodPlaceholder") : t("optionalNote")} required={event.event_type === "food"} /></label>
+          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? t("saving") : t("saveChanges")}</button>
+          <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>{t("deleteRecord")}</button>
         </form>
       </section>
     </div>
@@ -1292,14 +1338,16 @@ function EventEditor({ event, busy, onClose, onSave, onDelete }: { event: BabyEv
 }
 
 function SummaryCounts({ events }: { events: BabyEvent[] }) {
+  const { t } = useI18n();
   const counts = events.reduce<Record<EventType, number>>((result, event) => {
     result[event.event_type] += 1;
     return result;
   }, { milk: 0, food: 0, diaper: 0, shower: 0 });
-  return <div className="summary-strip">{(Object.keys(EVENT_META) as EventType[]).map((type) => <div key={type}><span>{EVENT_META[type].emoji}</span><strong>{counts[type]}</strong><small>{EVENT_META[type].label}</small></div>)}</div>;
+  return <div className="summary-strip">{(Object.keys(EVENT_META) as EventType[]).map((type) => <div key={type}><span>{EVENT_META[type].emoji}</span><strong>{counts[type]}</strong><small>{t(EVENT_META[type].labelKey)}</small></div>)}</div>;
 }
 
 function EventList({ events, onEdit, onDelete, empty }: { events: BabyEvent[]; onEdit: (event: BabyEvent) => void; onDelete: (id: string) => Promise<void>; empty: string }) {
+  const { locale, t } = useI18n();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -1323,10 +1371,12 @@ function EventList({ events, onEdit, onDelete, empty }: { events: BabyEvent[]; o
   if (!events.length) return <EmptyState text={empty} />;
   return <div className="event-list">{events.map((event) => {
     const meta = EVENT_META[event.event_type];
-    const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? milkTypeLabel(event.milk_type) : null, event.diaper_type ? diaperTypeLabel(event.diaper_type) : null, event.poo_level ? `Level ${event.poo_level}/5` : null, event.note].filter(Boolean).join(" · ");
+    const label = t(meta.labelKey);
+    const eventTime = formatTime(event.occurred_at, locale);
+    const details = [event.amount_ml ? `${event.amount_ml} ml` : null, event.milk_type ? milkTypeLabel(event.milk_type, t) : null, event.diaper_type ? diaperTypeLabel(event.diaper_type, t) : null, event.poo_level ? t("level", { level: event.poo_level }) : null, event.note].filter(Boolean).join(" · ");
     const confirming = confirmDeleteId === event.id;
     const deleting = deletingId === event.id;
-    return <div className="event-row" key={event.id}><button className="event-main" type="button" onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{meta.label}</strong><small>{details || "Tap to add details"}</small></span><time>{formatTime(event.occurred_at)}</time><span className="chevron">›</span></button><button className={`quick-delete ${confirming ? "confirm" : ""}`} type="button" disabled={deleting} aria-label={confirming ? `Confirm delete ${meta.label} record` : `Delete ${meta.label} record at ${formatTime(event.occurred_at)}`} onClick={() => void handleDelete(event.id)}>{deleting ? "Deleting…" : confirming ? "Confirm" : "Delete"}</button></div>;
+    return <div className="event-row" key={event.id}><button className="event-main" type="button" onClick={() => onEdit(event)}><span className={`event-icon ${meta.color}`}>{meta.emoji}</span><span className="event-copy"><strong>{label}</strong><small>{details || t("tapDetails")}</small></span><time>{eventTime}</time><span className="chevron">›</span></button><button className={`quick-delete ${confirming ? "confirm" : ""}`} type="button" disabled={deleting} aria-label={confirming ? t("confirmDelete", { type: label }) : t("deleteAt", { type: label, time: eventTime })} onClick={() => void handleDelete(event.id)}>{deleting ? t("deleting") : confirming ? t("confirm") : t("delete")}</button></div>;
   })}</div>;
 }
 
@@ -1335,40 +1385,43 @@ function NavButton({ active, icon, label, onClick }: { active: boolean; icon: st
 }
 
 function MetricCard({ label, value, change }: { label: string; value: string; change: string | null }) {
-  return <article className="metric-card"><span>{label}</span><strong>{value}</strong><small>{change ?? "No previous measurement"}</small></article>;
+  const { t } = useI18n();
+  return <article className="metric-card"><span>{label}</span><strong>{value}</strong><small>{change ?? t("noPreviousMeasurement")}</small></article>;
 }
 
 function Sparkline({ values }: { values: number[] }) {
+  const { t } = useI18n();
   if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
   const points = values.map((value, index) => `${10 + (index / (values.length - 1)) * 280},${90 - ((value - min) / range) * 70}`).join(" ");
-  return <svg className="sparkline" viewBox="0 0 300 110" role="img" aria-label={`Trend from ${values[0]} to ${values.at(-1)}`}><defs><linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#e88972" stopOpacity=".28"/><stop offset="1" stopColor="#e88972" stopOpacity="0"/></linearGradient></defs><path d={`M ${points.replaceAll(" ", " L ")} L 290 105 L 10 105 Z`} fill="url(#chart-fill)"/><polyline points={points} fill="none" stroke="#d86f59" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>{values.map((value, index) => { const [cx, cy] = points.split(" ")[index].split(","); return <circle key={`${value}-${index}`} cx={cx} cy={cy} r="4.5" fill="#fff" stroke="#d86f59" strokeWidth="3"/>; })}</svg>;
+  return <svg className="sparkline" viewBox="0 0 300 110" role="img" aria-label={t("trendFrom", { start: values[0], end: values.at(-1) ?? values[0] })}><defs><linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#e88972" stopOpacity=".28"/><stop offset="1" stopColor="#e88972" stopOpacity="0"/></linearGradient></defs><path d={`M ${points.replaceAll(" ", " L ")} L 290 105 L 10 105 Z`} fill="url(#chart-fill)"/><polyline points={points} fill="none" stroke="#d86f59" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>{values.map((value, index) => { const [cx, cy] = points.split(" ")[index].split(","); return <circle key={`${value}-${index}`} cx={cx} cy={cy} r="4.5" fill="#fff" stroke="#d86f59" strokeWidth="3"/>; })}</svg>;
 }
 
 function EmptyState({ text }: { text: string }) {
   return <div className="empty-state"><span>♡</span><p>{text}</p></div>;
 }
 
-function LoadingScreen({ label = "Loading her records…" }: { label?: string }) {
-  return <main className="loading-screen"><div className="loading-bubble">♡</div><p>{label}</p></main>;
+function LoadingScreen({ label }: { label?: string }) {
+  const { t } = useI18n();
+  return <main className="loading-screen"><div className="loading-bubble">♡</div><p>{label ?? t("loadingRecords")}</p></main>;
 }
 
 function sortNewest(a: BabyEvent, b: BabyEvent) {
   return Date.parse(b.occurred_at) - Date.parse(a.occurred_at);
 }
 
-function milkTypeLabel(type: MilkType) {
-  if (type === "cow_milk") return "Cow's milk";
-  if (type === "formula") return "Formula";
-  if (type === "breast_milk") return "Breast milk";
-  return "Breastfeeding";
+function milkTypeLabel(type: MilkType, t: (key: TranslationKey) => string) {
+  if (type === "cow_milk") return t("cowsMilk");
+  if (type === "formula") return t("formula");
+  if (type === "breast_milk") return t("breastMilk");
+  return t("breastfeeding");
 }
 
-function diaperTypeLabel(type: DiaperType) {
-  if (type === "both") return "Poo + wee";
-  return type === "poo" ? "Poo" : "Wee";
+function diaperTypeLabel(type: DiaperType, t: (key: TranslationKey) => string) {
+  if (type === "both") return t("pooAndWee");
+  return type === "poo" ? t("poo") : t("wee");
 }
 
 function sortMeasurements(a: Measurement, b: Measurement) {
@@ -1391,15 +1444,15 @@ function sumMilk(events: BabyEvent[]) {
   return events.reduce((total, event) => total + (event.event_type === "milk" ? event.amount_ml ?? 0 : 0), 0);
 }
 
-function formatWeekday(date: string) {
-  return new Intl.DateTimeFormat("en-HK", { weekday: "short" }).format(new Date(`${date}T12:00:00`));
+function formatWeekday(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(`${date}T12:00:00`));
 }
 
-function formatWeekHeading(dates: string[]) {
+function formatWeekHeading(dates: string[], locale: string) {
   const first = new Date(`${dates[0]}T12:00:00`);
   const last = new Date(`${dates.at(-1)}T12:00:00`);
-  const firstLabel = new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short" }).format(first);
-  const lastLabel = new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short", year: "numeric" }).format(last);
+  const firstLabel = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(first);
+  const lastLabel = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(last);
   return `${firstLabel} – ${lastLabel}`;
 }
 
@@ -1407,8 +1460,8 @@ function upsertById<T extends { id: string }>(current: T[], changed: T, sort: (a
   return [changed, ...current.filter((item) => item.id !== changed.id)].sort(sort);
 }
 
-function formatCurrentTime(date: Date) {
-  return new Intl.DateTimeFormat("en-US", {
+function formatCurrentTime(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Hong_Kong",
     hour: "2-digit",
     minute: "2-digit",
@@ -1416,8 +1469,8 @@ function formatCurrentTime(date: Date) {
   }).format(date);
 }
 
-function formatCurrentDate(date: Date) {
-  return new Intl.DateTimeFormat("en-HK", {
+function formatCurrentDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Hong_Kong",
     weekday: "short",
     day: "numeric",
@@ -1425,9 +1478,11 @@ function formatCurrentDate(date: Date) {
   }).format(date);
 }
 
-function metricChange(current: number | null | undefined, previous: number | null | undefined, unit: string, digits: number): string | null {
+function metricChange(current: number | null | undefined, previous: number | null | undefined, unit: string, digits: number, language: "en" | "zh-Hant" = "en"): string | null {
   if (current == null || previous == null) return null;
   const difference = current - previous;
   const sign = difference > 0 ? "+" : "";
-  return `${sign}${difference.toFixed(digits)} ${unit} since last time`;
+  return language === "zh-Hant"
+    ? `自上次起 ${sign}${difference.toFixed(digits)} ${unit}`
+    : `${sign}${difference.toFixed(digits)} ${unit} since last time`;
 }
