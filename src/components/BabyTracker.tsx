@@ -828,13 +828,23 @@ function BabyTrackerApp() {
       </nav>
 
       {editingEvent ? (
-        <EventEditor
-          event={editingEvent}
-          busy={busy}
-          onClose={() => setEditingEvent(null)}
-          onSave={updateEvent}
-          onDelete={() => void deleteEvent(editingEvent.id)}
-        />
+        editingEvent.event_type === "sleep" && !editingEvent.ended_at ? (
+          <WakeUpEditor
+            event={editingEvent}
+            busy={busy}
+            onClose={() => setEditingEvent(null)}
+            onWake={() => updateEvent({ ...editingEvent, ended_at: new Date().toISOString() })}
+            onDelete={() => void deleteEvent(editingEvent.id)}
+          />
+        ) : (
+          <EventEditor
+            event={editingEvent}
+            busy={busy}
+            onClose={() => setEditingEvent(null)}
+            onSave={updateEvent}
+            onDelete={() => void deleteEvent(editingEvent.id)}
+          />
+        )
       ) : null}
 
       {quickEventType ? (
@@ -925,9 +935,13 @@ function TodayView({
                 disabled={busy}
                 onClick={() => onQuickAdd(type)}
               >
-                <span className="quick-emoji" aria-hidden="true">{meta.emoji}</span>
+                <span className="quick-emoji" aria-hidden="true">{type === "sleep" && activeSleep ? "⏱️" : meta.emoji}</span>
                 <strong>{type === "sleep" && activeSleep ? t("wakeUp") : t(meta.labelKey)}</strong>
-                <small>{type === "sleep" ? activeSleep ? t("sleepingFor", { duration: durationLabel(activeSleep.occurred_at, now, language) }) : t("napOrNight") : type === "shower" ? t("recordNow") : t("addDetails")}</small>
+                {type === "sleep" && activeSleep ? (
+                  <small className="active-sleep-copy"><span className="sleep-live-dot" aria-hidden="true" /><b>{durationLabel(activeSleep.occurred_at, now, language)}</b><span>{t("tapWhenAwake")}</span></small>
+                ) : (
+                  <small>{type === "sleep" ? t("napOrNight") : type === "shower" ? t("recordNow") : t("addDetails")}</small>
+                )}
               </button>
             );
           })}
@@ -1479,6 +1493,47 @@ function SleepTypePicker({ value, onChange }: { value: SleepType; onChange: (val
     { value: "night", label: t("nightSleep"), emoji: "🌙" },
   ];
   return <fieldset className="sleep-picker"><legend>{t("sleepQuestion")}</legend><div>{options.map((option) => <button className={value === option.value ? "selected" : ""} type="button" key={option.value} onClick={() => onChange(option.value)} aria-pressed={value === option.value}><span aria-hidden="true">{option.emoji}</span>{option.label}</button>)}</div></fieldset>;
+}
+
+function WakeUpEditor({
+  event,
+  busy,
+  onClose,
+  onWake,
+  onDelete,
+}: {
+  event: BabyEvent;
+  busy: boolean;
+  onClose: () => void;
+  onWake: () => Promise<void>;
+  onDelete: () => void;
+}) {
+  const { language, locale, t } = useI18n();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
+      <section className="bottom-sheet wake-up-sheet" role="dialog" aria-modal="true" aria-labelledby="wake-up-title">
+        <div className="sheet-handle" />
+        <div className="sheet-title"><div className="event-icon lilac">⏱️</div><div><p className="eyebrow">{t("sleep")}</p><h2 id="wake-up-title">{t("wakeUpQuestion")}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
+        <div className="wake-up-summary">
+          <span className="sleep-live-dot" aria-hidden="true" />
+          <strong>{durationLabel(event.occurred_at, now, language)}</strong>
+          <p>{sleepTypeLabel(event.sleep_type, t)} · {t("sleepStartedAt", { time: formatTime(event.occurred_at, locale) })}</p>
+        </div>
+        <div className="wake-up-actions">
+          <button className="primary-button wake-up-button" type="button" disabled={busy} onClick={() => void onWake()}>{busy ? t("saving") : t("wakeUpNow")}</button>
+          <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{t("keepSleeping")}</button>
+          <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>{t("deleteRecord")}</button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function DiaperTypePicker({ value, onChange }: { value: DiaperType | null; onChange: (value: DiaperType) => void }) {

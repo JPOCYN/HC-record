@@ -377,7 +377,36 @@ textarea:focus-visible {
 }
 
 .sleep-quick-button.active-sleep {
-  box-shadow: inset 0 0 0 2px rgba(91, 67, 129, 0.24), 0 12px 25px rgba(87, 57, 47, 0.08);
+  color: #fff;
+  background: #654a82;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.28), 0 14px 30px rgba(72, 48, 103, 0.28);
+}
+
+.sleep-quick-button.active-sleep .quick-emoji { filter: none; }
+.sleep-quick-button.active-sleep strong { font-size: 1.4rem; }
+
+.sleep-quick-button .active-sleep-copy {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.875rem;
+}
+
+.active-sleep-copy b {
+  color: #fff;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sleep-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #87e7b0;
+  box-shadow: 0 0 0 4px rgba(135, 231, 176, 0.16);
 }
 
 .quick-emoji {
@@ -1476,6 +1505,45 @@ code {
   border-color: #6f9a79;
   color: #315c3d;
   background: #dcecdf;
+}
+
+.wake-up-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 20px;
+  border-radius: 20px;
+  color: #fff;
+  background: #654a82;
+  box-shadow: 0 14px 30px rgba(72, 48, 103, 0.2);
+}
+
+.wake-up-summary strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2.25rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.wake-up-summary p {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.875rem;
+}
+
+.wake-up-actions {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.wake-up-button {
+  min-height: 58px;
+  background: #d45445;
+  box-shadow: 0 10px 22px rgba(180, 67, 55, 0.25);
+  font-size: 1rem;
 }
 
 .sleep-picker button.selected {
