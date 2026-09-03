@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, durationLabel, formatScheduleTime, formatTime, isScheduleReminderActive, scheduleOccursOn, shiftDate, startOfWeek, weekDates } from "./date";
+import { ageLabel, durationLabel, formatScheduleTime, formatTime, isScheduleReminderActive, minutesDurationLabel, scheduleOccursOn, shiftDate, startOfWeek, weekDates } from "./date";
 
 describe("date helpers", () => {
   it("calculates the supplied baby age", () => {
@@ -44,5 +44,7 @@ describe("date helpers", () => {
   it("formats sleep durations in both supported languages", () => {
     expect(durationLabel("2026-09-02T13:00:00Z", "2026-09-02T14:35:00Z")).toBe("1h 35m");
     expect(durationLabel("2026-09-02T13:00:00Z", "2026-09-02T13:45:00Z", "zh-Hant")).toBe("45 分鐘");
+    expect(minutesDurationLabel(125)).toBe("2h 5m");
+    expect(minutesDurationLabel(125, "zh-Hant")).toBe("2 小時 5 分鐘");
   });
 });

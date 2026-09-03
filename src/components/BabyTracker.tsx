@@ -13,6 +13,7 @@ import {
   formatTime,
   fromDateTimeLocal,
   isScheduleReminderActive,
+  minutesDurationLabel,
   scheduleOccursOn,
   shiftDate,
   startOfWeek,
@@ -919,7 +920,13 @@ function TodayView({
 }) {
   const { language, t } = useI18n();
   const milkEvents = events.filter((event) => event.event_type === "milk");
+  const napEvents = events.filter((event) => event.event_type === "sleep" && event.sleep_type === "nap");
   const totalMilk = sumMilk(events);
+  const totalNapMinutes = napEvents.reduce((total, event) => {
+    const endedAt = event.ended_at ? new Date(event.ended_at) : now;
+    return total + Math.max(0, Math.floor((endedAt.getTime() - new Date(event.occurred_at).getTime()) / 60_000));
+  }, 0);
+  const hasActiveNap = napEvents.some((event) => !event.ended_at);
   return (
     <div className="today-view">
       <section className="quick-record-section">
@@ -950,10 +957,11 @@ function TodayView({
 
       {schedule.length ? <TodaySchedule items={schedule} /> : null}
 
-      <section className="last-cards" aria-label={t("latestFeeding")}>
+      <section className="last-cards" aria-label={t("todayOverview")}>
         <div className="last-card"><span>{t("lastMilk")}</span><strong>{latestMilk ? elapsedLabel(latestMilk.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
         <div className="last-card"><span>{t("lastFood")}</span><strong>{latestFood ? elapsedLabel(latestFood.occurred_at, new Date(), language) : t("noRecord")}</strong></div>
         <div className="last-card milk-total-card"><div><span>{t("todaysMilk")}</span><strong>{totalMilk} ml</strong></div><small>{t("bottlesRecorded", { count: milkEvents.length })}</small></div>
+        <div className="last-card nap-total-card"><div><span>{t("todaysNap")}</span><strong>{minutesDurationLabel(totalNapMinutes, language)}</strong></div><small>{t("napsRecorded", { count: napEvents.length })}{hasActiveNap ? ` · ${t("includesCurrentNap")}` : ""}</small></div>
       </section>
 
       <section className="timeline-section">

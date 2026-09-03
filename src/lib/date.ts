@@ -140,6 +140,11 @@ export function durationLabel(
 ): string {
   const end = typeof endedAt === "string" ? new Date(endedAt) : endedAt;
   const minutes = Math.max(0, Math.floor((end.getTime() - new Date(startedAt).getTime()) / 60_000));
+  return minutesDurationLabel(minutes, language);
+}
+
+export function minutesDurationLabel(totalMinutes: number, language: "en" | "zh-Hant" = "en"): string {
+  const minutes = Math.max(0, Math.floor(totalMinutes));
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   if (language === "zh-Hant") {

@@ -272,7 +272,7 @@ textarea:focus-visible {
 .today-schedule-item small { overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 0.69rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .today-view > .last-cards {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
   overflow: hidden;
   margin: 15px 0 0;
@@ -293,13 +293,18 @@ textarea:focus-visible {
   text-align: center;
 }
 
-.today-view .last-card:nth-child(1) { order: 1; }
-.today-view .milk-total-card { display: block; order: 2; grid-column: auto; }
-.today-view .last-card:nth-child(2) { order: 3; border-right: 0; }
-.today-view .last-card span { overflow: hidden; margin-bottom: 4px; font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
-.today-view .last-card strong { overflow: hidden; display: block; font-size: 0.86rem; text-overflow: ellipsis; white-space: nowrap; }
-.today-view .milk-total-card strong { font-family: inherit; font-size: 1rem; font-weight: 800; }
-.today-view .milk-total-card small { display: none; }
+.today-view .last-card:nth-child(2n) { border-right: 0; }
+.today-view .last-card:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
+.today-view .milk-total-card,
+.today-view .nap-total-card { display: block; grid-column: auto; }
+.today-view .milk-total-card { background: rgba(255, 237, 230, 0.55); }
+.today-view .nap-total-card { background: rgba(238, 232, 247, 0.58); }
+.today-view .last-card span { overflow: hidden; margin-bottom: 4px; font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.today-view .last-card strong { overflow: hidden; display: block; font-size: 0.9rem; text-overflow: ellipsis; white-space: nowrap; }
+.today-view .milk-total-card strong,
+.today-view .nap-total-card strong { font-family: inherit; font-size: 1rem; font-weight: 800; }
+.today-view .milk-total-card small,
+.today-view .nap-total-card small { display: none; }
 .today-view .timeline-section { margin-top: 26px; }
 
 .section-title {
@@ -362,18 +367,16 @@ textarea:focus-visible {
 
 .sleep-quick-button {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-content: center;
-  column-gap: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 88px;
+  text-align: center;
 }
 
 .sleep-quick-button .quick-emoji {
-  grid-row: 1 / 3;
-  align-self: center;
-  margin: 0;
+  margin: 0 0 6px;
 }
 
 .sleep-quick-button.active-sleep {
@@ -387,7 +390,9 @@ textarea:focus-visible {
 
 .sleep-quick-button .active-sleep-copy {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   color: rgba(255, 255, 255, 0.88);
   font-size: 0.875rem;
@@ -1859,9 +1864,10 @@ code {
     padding: 10px 6px;
   }
 
-  .today-view .last-card span { overflow: hidden; margin-bottom: 4px; font-size: 0.55rem; text-overflow: ellipsis; white-space: nowrap; }
-  .today-view .last-card strong { overflow: hidden; display: block; font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
-  .today-view .milk-total-card strong { font-family: inherit; font-size: 0.9rem; font-weight: 800; }
+  .today-view .last-card span { overflow: hidden; margin-bottom: 4px; font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+  .today-view .last-card strong { overflow: hidden; display: block; font-size: 0.82rem; text-overflow: ellipsis; white-space: nowrap; }
+  .today-view .milk-total-card strong,
+  .today-view .nap-total-card strong { font-family: inherit; font-size: 0.9rem; font-weight: 800; }
   .today-view .timeline-section { margin-top: 24px; }
 }
 
@@ -1906,9 +1912,12 @@ code {
   .quick-button { min-height: 118px; }
   .sleep-quick-button {
     grid-column: auto;
-    display: block;
+    display: flex;
   }
-  .sleep-quick-button .quick-emoji { margin-bottom: 15px; }
+  .sleep-quick-button .quick-emoji { margin-bottom: 10px; }
+  .today-view > .last-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .today-view .last-card:nth-child(-n + 2) { border-bottom: 0; }
+  .today-view .last-card:nth-child(2) { border-right: 1px solid var(--line); }
   .growth-cards { gap: 14px; }
   .growth-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .growth-cards .metric-card:last-child:nth-child(odd) { grid-column: auto; }
