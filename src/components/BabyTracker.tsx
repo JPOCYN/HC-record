@@ -160,7 +160,7 @@ function BabyTrackerApp() {
   const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduleItem | null>(null);
   const [addingScheduleDate, setAddingScheduleDate] = useState<string | null>(null);
   const [quickEventType, setQuickEventType] = useState<EventType | null>(null);
-  const [toast, setToast] = useState<{ event: BabyEvent; message: string } | null>(null);
+  const [toast, setToast] = useState<{ event: BabyEvent; message: string; canUndo?: boolean } | null>(null);
   const [offlineNotice, setOfflineNotice] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [now, setNow] = useState(() => new Date());
@@ -507,9 +507,35 @@ function BabyTrackerApp() {
   }
 
   async function saveQuickEvent(draft: EventDraft) {
+    const activeNightSleep = draft.event_type === "diaper"
+      ? events.find((event) => (
+          event.event_type === "sleep"
+          && event.sleep_type === "night"
+          && !event.ended_at
+          && Date.parse(event.occurred_at) <= Date.parse(draft.occurred_at)
+        ))
+      : undefined;
     const saved = await addEvent(draft);
     if (!saved) return;
     setQuickEventType(null);
+    if (activeNightSleep) {
+      const completedSleep: BabyEvent = {
+        ...activeNightSleep,
+        ended_at: saved.occurred_at,
+        updated_at: new Date().toISOString(),
+      };
+      setEvents((current) => current.map((event) => (event.id === completedSleep.id ? completedSleep : event)).sort(sortNewest));
+      setEditingEvent((current) => (current?.id === completedSleep.id ? null : current));
+      setToast({
+        event: saved,
+        canUndo: false,
+        message: t("nightSleepEndedWithDiaper", {
+          time: formatTime(saved.occurred_at, locale),
+          duration: durationLabel(activeNightSleep.occurred_at, saved.occurred_at, language),
+        }),
+      });
+      return;
+    }
     setToast({ event: saved, message: t("savedAt", { type: t(EVENT_META[saved.event_type].labelKey), time: formatTime(saved.occurred_at, locale) }) });
   }
 
@@ -882,9 +908,9 @@ function BabyTrackerApp() {
       ) : null}
 
       {toast ? (
-        <div className="toast" role="status">
+        <div className={`toast ${toast.canUndo === false ? "no-undo" : ""}`} role="status">
           <div><strong>{t("saved")}</strong><span>{toast.message}</span></div>
-          <button type="button" onClick={() => void deleteEvent(toast.event.id)}>{t("undo")}</button>
+          {toast.canUndo !== false ? <button type="button" onClick={() => void deleteEvent(toast.event.id)}>{t("undo")}</button> : null}
           <button type="button" onClick={() => { setEditingEvent(toast.event); setToast(null); }}>{t("details")}</button>
           <button className="toast-close" type="button" onClick={() => setToast(null)} aria-label={t("close")}>×</button>
         </div>
@@ -943,7 +969,9 @@ function TodayView({
                 onClick={() => onQuickAdd(type)}
               >
                 <span className="quick-emoji" aria-hidden="true">{type === "sleep" && activeSleep ? "⏱️" : meta.emoji}</span>
-                <strong>{type === "sleep" && activeSleep ? t("wakeUp") : t(meta.labelKey)}</strong>
+                <strong>{type === "sleep" && activeSleep
+                  ? activeSleep.sleep_type === "night" ? t("nightSleep") : t("wakeUp")
+                  : t(meta.labelKey)}</strong>
                 {type === "sleep" && activeSleep ? (
                   <small className="active-sleep-copy"><span className="sleep-live-dot" aria-hidden="true" /><b>{durationLabel(activeSleep.occurred_at, now, language)}</b><span>{t("tapWhenAwake")}</span></small>
                 ) : (
@@ -1518,6 +1546,7 @@ function WakeUpEditor({
 }) {
   const { language, locale, t } = useI18n();
   const [now, setNow] = useState(() => new Date());
+  const endsWithFirstDiaper = event.sleep_type === "night";
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 15_000);
@@ -1528,15 +1557,16 @@ function WakeUpEditor({
     <div className="modal-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
       <section className="bottom-sheet wake-up-sheet" role="dialog" aria-modal="true" aria-labelledby="wake-up-title">
         <div className="sheet-handle" />
-        <div className="sheet-title"><div className="event-icon lilac">⏱️</div><div><p className="eyebrow">{t("sleep")}</p><h2 id="wake-up-title">{t("wakeUpQuestion")}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
+        <div className="sheet-title"><div className="event-icon lilac">⏱️</div><div><p className="eyebrow">{t("sleep")}</p><h2 id="wake-up-title">{endsWithFirstDiaper ? t("nightSleepActive") : t("wakeUpQuestion")}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
         <div className="wake-up-summary">
           <span className="sleep-live-dot" aria-hidden="true" />
           <strong>{durationLabel(event.occurred_at, now, language)}</strong>
           <p>{sleepTypeLabel(event.sleep_type, t)} · {t("sleepStartedAt", { time: formatTime(event.occurred_at, locale) })}</p>
+          {endsWithFirstDiaper ? <p className="night-wake-note">🩲 {t("endsWithFirstDiaper")}</p> : null}
         </div>
         <div className="wake-up-actions">
-          <button className="primary-button wake-up-button" type="button" disabled={busy} onClick={() => void onWake()}>{busy ? t("saving") : t("wakeUpNow")}</button>
-          <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{t("keepSleeping")}</button>
+          {!endsWithFirstDiaper ? <button className="primary-button wake-up-button" type="button" disabled={busy} onClick={() => void onWake()}>{busy ? t("saving") : t("wakeUpNow")}</button> : null}
+          <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{endsWithFirstDiaper ? t("close") : t("keepSleeping")}</button>
           <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>{t("deleteRecord")}</button>
         </div>
       </section>
