@@ -90,6 +90,16 @@ export function isScheduleReminderActive(
   return now.getTime() <= eventAt.getTime() + graceMinutes * 60_000;
 }
 
+export function scheduleOccursOn(
+  item: { event_date: string; repeats_weekly: boolean; repeat_until?: string | null },
+  date: string,
+): boolean {
+  if (!item.repeats_weekly) return item.event_date === date;
+  if (item.event_date > date) return false;
+  if (item.repeat_until && date > item.repeat_until) return false;
+  return new Date(`${item.event_date}T12:00:00`).getDay() === new Date(`${date}T12:00:00`).getDay();
+}
+
 export function ageLabel(dateOfBirth: string, now = new Date(), language: "en" | "zh-Hant" = "en"): string {
   const birth = new Date(`${dateOfBirth}T00:00:00`);
   let months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();

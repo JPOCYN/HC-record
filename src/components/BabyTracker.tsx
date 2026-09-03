@@ -12,6 +12,7 @@ import {
   formatTime,
   fromDateTimeLocal,
   isScheduleReminderActive,
+  scheduleOccursOn,
   shiftDate,
   startOfWeek,
   toDateTimeLocal,
@@ -66,6 +67,8 @@ function makeDemoProfile(): BabyProfile {
     date_of_birth: "2025-11-15",
     blood_type: null,
     birth_weight_kg: null,
+    birth_length_cm: null,
+    birth_head_circumference_cm: null,
     birth_time: null,
     gestational_weeks: null,
     gestational_days: null,
@@ -117,6 +120,7 @@ function makeDemoMeasurements(): Measurement[] {
     measured_at: new Date(measured_at).toISOString(),
     height_cm,
     weight_kg,
+    head_circumference_cm: null,
     note: null,
     created_at: new Date(measured_at).toISOString(),
     updated_at: new Date(measured_at).toISOString(),
@@ -553,6 +557,7 @@ function BabyTrackerApp() {
       measured_at: draft.measured_at,
       height_cm: draft.height_cm,
       weight_kg: draft.weight_kg,
+      head_circumference_cm: draft.head_circumference_cm,
       note: draft.note?.trim() || null,
       created_at: stamp,
       updated_at: stamp,
@@ -604,6 +609,7 @@ function BabyTrackerApp() {
       event_date: draft.event_date,
       event_time: draft.event_time || null,
       repeats_weekly: draft.repeats_weekly,
+      repeat_until: draft.repeats_weekly ? draft.repeat_until : null,
       note: draft.note?.trim() || null,
       created_at: stamp,
       updated_at: stamp,
@@ -641,6 +647,7 @@ function BabyTrackerApp() {
         event_date: item.event_date,
         event_time: item.event_time || null,
         repeats_weekly: item.repeats_weekly,
+        repeat_until: item.repeats_weekly ? item.repeat_until : null,
         note: item.note?.trim() || null,
       })
       .eq("id", item.id)
@@ -687,6 +694,8 @@ function BabyTrackerApp() {
         date_of_birth: next.date_of_birth,
         blood_type: next.blood_type,
         birth_weight_kg: next.birth_weight_kg,
+        birth_length_cm: next.birth_length_cm,
+        birth_head_circumference_cm: next.birth_head_circumference_cm,
         birth_time: next.birth_time || null,
         gestational_weeks: next.gestational_weeks,
         gestational_days: next.gestational_weeks == null ? null : next.gestational_days,
@@ -727,10 +736,13 @@ function BabyTrackerApp() {
           <div className="hero-profile">
             <p className="eyebrow">{t("babyRecord")}</p>
             <h1>{profile.name}</h1>
+            <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}</p>
           </div>
-          <time className="hero-time" dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
+          <div className="hero-clock">
+            <time className="hero-time" dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
+            <span>{formatCurrentDate(now, locale)}</span>
+          </div>
         </div>
-        <p className="baby-age"><span>{formatCurrentDate(now, locale)}</span> · {t("girl")} · {ageLabel(profile.date_of_birth, now, language)}</p>
       </header>
 
       {error ? (
@@ -1006,7 +1018,7 @@ function WeekView({
                   return (
                     <button className={`schedule-row ${meta.color}`} type="button" key={`${item.id}-${date}`} onClick={() => onEdit(item)}>
                       <span className="schedule-row-emoji">{meta.emoji}</span>
-                      <span className="schedule-row-copy"><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time, locale, t("allDay"))}{item.repeats_weekly ? ` · ${t("everyWeek")}` : ""}{item.note ? ` · ${item.note}` : ""}</small></span>
+                      <span className="schedule-row-copy"><strong>{item.title}</strong><small>{formatScheduleTime(item.event_time, locale, t("allDay"))}{item.repeats_weekly ? ` · ${item.repeat_until ? t("repeatsUntil", { date: formatShortDate(item.repeat_until, locale) }) : t("everyWeek")}` : ""}{item.note ? ` · ${item.note}` : ""}</small></span>
                       <span className="chevron">›</span>
                     </button>
                   );
@@ -1042,6 +1054,7 @@ function ScheduleEditor({
   const [eventDate, setEventDate] = useState(item?.event_date ?? defaultDate);
   const [eventTime, setEventTime] = useState(item?.event_time?.slice(0, 5) ?? "");
   const [repeatsWeekly, setRepeatsWeekly] = useState(item?.repeats_weekly ?? true);
+  const [repeatUntil, setRepeatUntil] = useState(item?.repeat_until ?? "");
   const [note, setNote] = useState(item?.note ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const meta = SCHEDULE_META[type];
@@ -1061,15 +1074,16 @@ function ScheduleEditor({
         <form onSubmit={(event) => {
           event.preventDefault();
           if (!title.trim()) return;
-          void onSave({ item_type: type, title: title.trim(), event_date: eventDate, event_time: eventTime || null, repeats_weekly: repeatsWeekly, note: note.trim() || null });
+          void onSave({ item_type: type, title: title.trim(), event_date: eventDate, event_time: eventTime || null, repeats_weekly: repeatsWeekly, repeat_until: repeatsWeekly ? repeatUntil || null : null, note: note.trim() || null });
         }}>
           <fieldset className="schedule-type-picker"><legend>{t("whatIsIt")}</legend><div>{(Object.keys(SCHEDULE_META) as ScheduleItemType[]).map((option) => <button className={type === option ? "selected" : ""} type="button" key={option} onClick={() => chooseType(option)} aria-pressed={type === option}><span>{SCHEDULE_META[option].emoji}</span>{t(SCHEDULE_META[option].labelKey)}</button>)}</div></fieldset>
           <label><span>{t("name")}</span><input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} placeholder={t("school")} required /></label>
           <div className="form-grid schedule-date-time">
-            <label><span>{t("date")}</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required /></label>
+            <label><span>{t("date")}</span><input type="date" value={eventDate} onChange={(event) => { const nextDate = event.target.value; setEventDate(nextDate); if (repeatUntil && repeatUntil < nextDate) setRepeatUntil(""); }} required /></label>
             <label><span>{t("timeOptional")}</span><input type="time" value={eventTime} onChange={(event) => setEventTime(event.target.value)} /></label>
           </div>
           <label className="repeat-toggle"><input type="checkbox" checked={repeatsWeekly} onChange={(event) => setRepeatsWeekly(event.target.checked)} /><span><strong>{t("repeatEveryWeek")}</strong><small>{t("repeatHelp")}</small></span></label>
+          {repeatsWeekly ? <label><span>{t("repeatUntil")}</span><input type="date" value={repeatUntil} min={eventDate} onChange={(event) => setRepeatUntil(event.target.value)} /><small className="field-help">{t("repeatUntilHelp")}</small></label> : null}
           <label><span>{t("noteOptional")}</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("scheduleNotePlaceholder")} /></label>
           <button className="primary-button" type="submit" disabled={busy || !title.trim()}>{busy ? t("saving") : item ? t("saveChanges") : t("addToTimetable")}</button>
           {onDelete ? <button className="danger-button" type="button" disabled={busy} onClick={() => { if (confirmingDelete) void onDelete(); else setConfirmingDelete(true); }}>{confirmingDelete ? t("tapAgainDelete") : t("deleteTimetable")}</button> : null}
@@ -1112,26 +1126,30 @@ function GrowthView({
   onDelete: (id: string) => Promise<boolean>;
 }) {
   const { language, locale, t } = useI18n();
-  const [measurementType, setMeasurementType] = useState<"weight" | "height" | null>(null);
+  const [measurementType, setMeasurementType] = useState<"weight" | "height" | "headCircumference" | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [date, setDate] = useState(() => toDateTimeLocal());
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  const [headCircumference, setHeadCircumference] = useState("");
   const [note, setNote] = useState("");
   const newestFirst = [...measurements].sort(sortMeasurements);
   const weightRows = newestFirst.filter((item) => item.weight_kg != null);
   const heightRows = newestFirst.filter((item) => item.height_cm != null);
+  const headRows = newestFirst.filter((item) => item.head_circumference_cm != null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!measurementType) return;
     const heightValue = measurementType === "height" && height ? Number(height) : null;
     const weightValue = measurementType === "weight" && weight ? Number(weight) : null;
-    if (heightValue == null && weightValue == null) return;
-    await onAdd({ measured_at: fromDateTimeLocal(date), height_cm: heightValue, weight_kg: weightValue, note });
+    const headValue = measurementType === "headCircumference" && headCircumference ? Number(headCircumference) : null;
+    if (heightValue == null && weightValue == null && headValue == null) return;
+    await onAdd({ measured_at: fromDateTimeLocal(date), height_cm: heightValue, weight_kg: weightValue, head_circumference_cm: headValue, note });
     setHeight("");
     setWeight("");
+    setHeadCircumference("");
     setNote("");
     setDate(toDateTimeLocal());
     setMeasurementType(null);
@@ -1154,6 +1172,7 @@ function GrowthView({
         <div className="growth-actions">
           <button className="small-action" type="button" onClick={() => setMeasurementType("weight")}>+ {t("weight")}</button>
           <button className="small-action" type="button" onClick={() => setMeasurementType("height")}>+ {t("height")}</button>
+          <button className="small-action" type="button" onClick={() => setMeasurementType("headCircumference")}>+ {t("headCircumference")}</button>
         </div>
       </div>
 
@@ -1161,16 +1180,18 @@ function GrowthView({
         <form className="panel form-grid" onSubmit={submit}>
           <div className="form-heading full-field"><strong>{t("addMeasurement", { type: t(measurementType) })}</strong><button type="button" onClick={() => setMeasurementType(null)}>{t("cancel")}</button></div>
           <label className="full-field"><span>{t("dateAndTime")}</span><input type="datetime-local" value={date} max={toDateTimeLocal()} onChange={(event) => setDate(event.target.value)} required /></label>
-          {measurementType === "weight" ? <label className="full-field"><span>{t("weightKg")}</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.01" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.20" required autoFocus /></label> : null}
+          {measurementType === "weight" ? <label className="full-field"><span>{t("weightKg")}</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.001" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.200" required autoFocus /></label> : null}
           {measurementType === "height" ? <label className="full-field"><span>{t("heightCm")}</span><input inputMode="decimal" type="number" min="20" max="200" step="0.1" value={height} onChange={(event) => setHeight(event.target.value)} placeholder="70.1" required autoFocus /></label> : null}
+          {measurementType === "headCircumference" ? <label className="full-field"><span>{t("headCircumferenceCm")}</span><input inputMode="decimal" type="number" min="15" max="80" step="0.1" value={headCircumference} onChange={(event) => setHeadCircumference(event.target.value)} placeholder="40.0" required autoFocus /></label> : null}
           <label className="full-field"><span>{t("noteOptional")}</span><input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder={t("measuredAtHome")} /></label>
-          <button className="primary-button full-field" type="submit" disabled={busy || (measurementType === "height" ? !height : !weight)}>{busy ? t("saving") : t("saveMeasurement", { type: t(measurementType) })}</button>
+          <button className="primary-button full-field" type="submit" disabled={busy || (measurementType === "height" ? !height : measurementType === "weight" ? !weight : !headCircumference)}>{busy ? t("saving") : t("saveMeasurement", { type: t(measurementType) })}</button>
         </form>
       ) : null}
 
       <div className="growth-cards">
-        <MetricCard label={t("latestWeight")} value={weightRows[0]?.weight_kg != null ? `${weightRows[0].weight_kg.toFixed(2)} kg` : "—"} change={metricChange(weightRows[0]?.weight_kg, weightRows[1]?.weight_kg, "kg", 2, language)} />
+        <MetricCard label={t("latestWeight")} value={weightRows[0]?.weight_kg != null ? `${weightRows[0].weight_kg.toFixed(3)} kg` : "—"} change={metricChange(weightRows[0]?.weight_kg, weightRows[1]?.weight_kg, "kg", 3, language)} />
         <MetricCard label={t("latestHeight")} value={heightRows[0]?.height_cm != null ? `${heightRows[0].height_cm.toFixed(1)} cm` : "—"} change={metricChange(heightRows[0]?.height_cm, heightRows[1]?.height_cm, "cm", 1, language)} />
+        <MetricCard label={t("latestHeadCircumference")} value={headRows[0]?.head_circumference_cm != null ? `${headRows[0].head_circumference_cm.toFixed(1)} cm` : "—"} change={metricChange(headRows[0]?.head_circumference_cm, headRows[1]?.head_circumference_cm, "cm", 1, language)} />
       </div>
 
       {measurements.length ? (
@@ -1178,8 +1199,9 @@ function GrowthView({
           <div className="growth-section-heading"><p className="eyebrow">{t("trend")}</p><h3>{t("growthCurves")}</h3></div>
           <p className="who-standard-label">{t("whoStandardGirls")}</p>
           <div className="growth-curve-grid">
-            {weightRows.length ? <GrowthCurve dateOfBirth={dateOfBirth} rows={[...weightRows].reverse()} metric="weight" label={t("weight")} unit="kg" digits={2} /> : null}
+            {weightRows.length ? <GrowthCurve dateOfBirth={dateOfBirth} rows={[...weightRows].reverse()} metric="weight" label={t("weight")} unit="kg" digits={3} /> : null}
             {heightRows.length ? <GrowthCurve dateOfBirth={dateOfBirth} rows={[...heightRows].reverse()} metric="height" label={t("lengthHeight")} unit="cm" digits={1} /> : null}
+            {headRows.length ? <GrowthCurve dateOfBirth={dateOfBirth} rows={[...headRows].reverse()} metric="head" label={t("headCircumference")} unit="cm" digits={1} /> : null}
           </div>
           <p className="who-growth-note">{t("whoGrowthNote")}</p>
         </section>
@@ -1190,19 +1212,21 @@ function GrowthView({
           <div className="growth-section-heading"><p className="eyebrow">{t("growthHistory")}</p><h3>{t("measurements")}</h3></div>
           <div className="growth-table-scroll">
             <table className="growth-table">
-              <thead><tr><th>{t("date")}</th><th>{t("weight")}</th><th>{t("height")}</th><th><span className="sr-only">{t("delete")}</span></th></tr></thead>
+              <thead><tr><th>{t("date")}</th><th>{t("weight")}</th><th>{t("height")}</th><th>{t("headCircumference")}</th><th><span className="sr-only">{t("delete")}</span></th></tr></thead>
               <tbody>
                 {newestFirst.map((item) => {
                   const dateLabel = formatShortDate(item.measured_at, locale);
                   const weightPercentile = item.weight_kg == null ? null : formatWhoPercentile(whoPercentile("weight", dateOfBirth, item.measured_at, item.weight_kg));
                   const heightPercentile = item.height_cm == null ? null : formatWhoPercentile(whoPercentile("height", dateOfBirth, item.measured_at, item.height_cm));
+                  const headPercentile = item.head_circumference_cm == null ? null : formatWhoPercentile(whoPercentile("head", dateOfBirth, item.measured_at, item.head_circumference_cm));
                   const confirming = confirmDeleteId === item.id;
                   const deleting = deletingId === item.id;
                   return (
                     <tr key={item.id}>
                       <td className="growth-date"><strong>{dateLabel}</strong><small>{formatTime(item.measured_at, locale)}</small></td>
-                      <td>{item.weight_kg != null ? <><strong>{item.weight_kg.toFixed(2)} kg</strong>{weightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: weightPercentile })}</small> : null}</> : "—"}</td>
+                      <td>{item.weight_kg != null ? <><strong>{item.weight_kg.toFixed(3)} kg</strong>{weightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: weightPercentile })}</small> : null}</> : "—"}</td>
                       <td>{item.height_cm != null ? <><strong>{item.height_cm.toFixed(1)} cm</strong>{heightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: heightPercentile })}</small> : null}</> : "—"}</td>
+                      <td>{item.head_circumference_cm != null ? <><strong>{item.head_circumference_cm.toFixed(1)} cm</strong>{headPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: headPercentile })}</small> : null}</> : "—"}</td>
                       <td><button className={`measurement-delete ${confirming ? "confirm" : ""}`} type="button" disabled={busy || deleting} aria-label={confirming ? t("confirmDeleteMeasurement", { date: dateLabel }) : t("deleteMeasurement", { date: dateLabel })} onClick={() => void handleDelete(item.id)}>{deleting ? t("deleting") : confirming ? t("confirm") : t("delete")}</button></td>
                     </tr>
                   );
@@ -1242,6 +1266,8 @@ function SettingsView({
   const birthDetails = [
     profile.birth_time ? `${t("birthTime")}: ${formatScheduleTime(profile.birth_time, locale, "")}` : null,
     profile.birth_weight_kg != null ? `${t("birthWeightKg")}: ${profile.birth_weight_kg.toFixed(3)} kg` : null,
+    profile.birth_length_cm != null ? `${t("birthLengthCm")}: ${profile.birth_length_cm.toFixed(1)} cm` : null,
+    profile.birth_head_circumference_cm != null ? `${t("birthHeadCircumferenceCm")}: ${profile.birth_head_circumference_cm.toFixed(1)} cm` : null,
     profile.blood_type ? `${t("bloodType")}: ${profile.blood_type}` : null,
     profile.gestational_weeks != null ? t("gestationalSummary", { weeks: profile.gestational_weeks, days: profile.gestational_days ?? 0 }) : null,
   ].filter(Boolean).join(" · ");
@@ -1268,6 +1294,8 @@ function SettingsView({
             <label><span>{t("birthTime")}</span><input type="time" value={draft.birth_time?.slice(0, 5) ?? ""} onChange={(event) => setDraft({ ...draft, birth_time: event.target.value || null })} /></label>
             <label><span>{t("bloodType")}</span><select value={draft.blood_type ?? ""} onChange={(event) => setDraft({ ...draft, blood_type: event.target.value ? event.target.value as BloodType : null })}><option value="">{t("notSpecified")}</option>{BLOOD_TYPES.map((type) => <option value={type} key={type}>{type}</option>)}</select></label>
             <label><span>{t("birthWeightKg")}</span><input inputMode="decimal" type="number" min="0.2" max="10" step="0.001" value={draft.birth_weight_kg ?? ""} onChange={(event) => setDraft({ ...draft, birth_weight_kg: event.target.value ? Number(event.target.value) : null })} placeholder="3.200" /></label>
+            <label><span>{t("birthLengthCm")}</span><input inputMode="decimal" type="number" min="20" max="80" step="0.1" value={draft.birth_length_cm ?? ""} onChange={(event) => setDraft({ ...draft, birth_length_cm: event.target.value ? Number(event.target.value) : null })} placeholder="49.0" /></label>
+            <label><span>{t("birthHeadCircumferenceCm")}</span><input inputMode="decimal" type="number" min="15" max="60" step="0.1" value={draft.birth_head_circumference_cm ?? ""} onChange={(event) => setDraft({ ...draft, birth_head_circumference_cm: event.target.value ? Number(event.target.value) : null })} placeholder="32.0" /></label>
           </div>
           <fieldset className="gestational-fields"><legend>{t("gestationalAge")}</legend><div className="form-grid profile-field-grid"><label><span>{t("completedWeeks")}</span><input inputMode="numeric" type="number" min="20" max="45" step="1" value={draft.gestational_weeks ?? ""} onChange={(event) => setDraft({ ...draft, gestational_weeks: event.target.value ? Number(event.target.value) : null, gestational_days: event.target.value ? draft.gestational_days : null })} placeholder="39" /></label><label><span>{t("extraDays")}</span><input inputMode="numeric" type="number" min="0" max="6" step="1" value={draft.gestational_days ?? ""} disabled={draft.gestational_weeks == null} onChange={(event) => setDraft({ ...draft, gestational_days: event.target.value ? Number(event.target.value) : null })} placeholder="0" /></label></div></fieldset>
           <label><span>{t("timeZone")}</span><select value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}><option value="Asia/Hong_Kong">{t("hongKong")}</option></select></label>
@@ -1549,7 +1577,7 @@ function GrowthCurve({
   digits: number;
 }) {
   const { t } = useI18n();
-  const field = metric === "weight" ? "weight_kg" : "height_cm";
+  const field = metric === "weight" ? "weight_kg" : metric === "head" ? "head_circumference_cm" : "height_cm";
   const measurements = rows.flatMap((row) => {
     const value = row[field];
     const age = ageInMonths(dateOfBirth, row.measured_at);
@@ -1576,7 +1604,7 @@ function GrowthCurve({
   const yFor = (value: number) => 106 - ((value - min) / (max - min)) * 86;
   const measurementCoordinates = measurements.map((item) => ({ x: xFor(item.age), y: yFor(item.value) }));
   const measurementPoints = measurementCoordinates.map(({ x, y }) => `${x},${y}`).join(" ");
-  const color = metric === "weight" ? "#d86f59" : "#4f8ca7";
+  const color = metric === "weight" ? "#d86f59" : metric === "head" ? "#8b6eb4" : "#4f8ca7";
   const latestPercentile = formatWhoPercentile(whoPercentile(metric, dateOfBirth, latest.date, latest.value));
   return (
     <article className="panel growth-curve-card">
@@ -1629,12 +1657,6 @@ function sortScheduleItems(a: ScheduleItem, b: ScheduleItem) {
   const dateDifference = a.event_date.localeCompare(b.event_date);
   if (dateDifference) return dateDifference;
   return (a.event_time ?? "").localeCompare(b.event_time ?? "");
-}
-
-function scheduleOccursOn(item: ScheduleItem, date: string) {
-  if (!item.repeats_weekly) return item.event_date === date;
-  if (item.event_date > date) return false;
-  return new Date(`${item.event_date}T12:00:00`).getDay() === new Date(`${date}T12:00:00`).getDay();
 }
 
 function sumMilk(events: BabyEvent[]) {

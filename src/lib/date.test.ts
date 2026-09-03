@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, formatScheduleTime, formatTime, isScheduleReminderActive, shiftDate, startOfWeek, weekDates } from "./date";
+import { ageLabel, formatScheduleTime, formatTime, isScheduleReminderActive, scheduleOccursOn, shiftDate, startOfWeek, weekDates } from "./date";
 
 describe("date helpers", () => {
   it("calculates the supplied baby age", () => {
@@ -33,5 +33,11 @@ describe("date helpers", () => {
     expect(isScheduleReminderActive("2026-09-02", "15:00:00", new Date("2026-09-02T07:15:00Z"))).toBe(true);
     expect(isScheduleReminderActive("2026-09-02", "15:00:00", new Date("2026-09-02T07:15:01Z"))).toBe(false);
     expect(isScheduleReminderActive("2026-09-02", null, new Date("2026-09-02T23:59:00Z"))).toBe(true);
+  });
+
+  it("stops weekly timetable items after their final date", () => {
+    const item = { event_date: "2026-09-02", repeats_weekly: true, repeat_until: "2026-10-02" };
+    expect(scheduleOccursOn(item, "2026-09-30")).toBe(true);
+    expect(scheduleOccursOn(item, "2026-10-07")).toBe(false);
   });
 });

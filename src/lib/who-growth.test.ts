@@ -11,10 +11,12 @@ describe("WHO girls growth standards", () => {
   it("returns the published 9-month median values", () => {
     expect(whoReferenceValue("weight", 9, 0)).toBeCloseTo(8.2254, 4);
     expect(whoReferenceValue("height", 9, 0)).toBeCloseTo(70.1435, 4);
+    expect(whoReferenceValue("head", 9, 0)).toBeCloseTo(43.83, 4);
   });
 
   it("maps the median weight to the 50th percentile", () => {
     expect(whoPercentile("weight", "2025-11-15", "2026-08-15T00:00:00Z", 8.2254)).toBeCloseTo(50, 1);
+    expect(whoPercentile("head", "2025-11-15", "2026-08-15T00:00:00Z", 43.83)).toBeCloseTo(50, 1);
   });
 
   it("formats percentile labels for the chart and table", () => {
