@@ -1,8 +1,9 @@
-export const EVENT_TYPES = ["milk", "food", "diaper", "shower"] as const;
+export const EVENT_TYPES = ["milk", "food", "diaper", "shower", "sleep"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
 export type MilkType = "formula" | "cow_milk" | "breast_milk" | "breastfeeding";
 export type DiaperType = "wee" | "poo" | "both";
+export type SleepType = "nap" | "night";
 export type ScheduleItemType = "school" | "doctor" | "important";
 export type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
 
@@ -34,6 +35,8 @@ export interface BabyEvent {
   amount_ml: number | null;
   diaper_type: DiaperType | null;
   poo_level: number | null;
+  sleep_type: SleepType | null;
+  ended_at: string | null;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -74,6 +77,8 @@ export interface EventDraft {
   amount_ml?: number | null;
   diaper_type?: DiaperType | null;
   poo_level?: number | null;
+  sleep_type?: SleepType | null;
+  ended_at?: string | null;
   note?: string | null;
 }
 

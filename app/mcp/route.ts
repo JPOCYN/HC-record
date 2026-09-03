@@ -6,7 +6,7 @@ import type { BabyEvent, BabyProfile, EventType, Measurement, ScheduleItem } fro
 export const runtime = "nodejs";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
-const eventTypeSchema = z.enum(["milk", "food", "diaper", "shower"]);
+const eventTypeSchema = z.enum(["milk", "food", "diaper", "shower", "sleep"]);
 
 const handler = createMcpHandler((server) => {
   server.registerTool(
@@ -32,7 +32,7 @@ const handler = createMcpHandler((server) => {
     "get_latest_event",
     {
       title: "Get latest baby event",
-      description: "Find the most recent milk, food, diaper, or shower record. Use for questions such as 'When was her last milk?'.",
+      description: "Find the most recent milk, food, diaper, shower, or sleep record. Use for questions such as 'When was her last milk?' or 'When did she last sleep?'.",
       inputSchema: z.object({ event_type: eventTypeSchema }).strict(),
       annotations: readOnlyAnnotations,
     },
@@ -40,7 +40,7 @@ const handler = createMcpHandler((server) => {
       const profile = await getProfile(supabase);
       const { data, error } = await supabase
         .from("events")
-        .select("event_type, occurred_at, milk_type, amount_ml, diaper_type, poo_level, note")
+        .select("event_type, occurred_at, milk_type, amount_ml, diaper_type, poo_level, sleep_type, ended_at, note")
         .eq("baby_id", profile.id)
         .eq("event_type", event_type)
         .order("occurred_at", { ascending: false })
@@ -71,11 +71,11 @@ const handler = createMcpHandler((server) => {
     "get_events",
     {
       title: "Get baby records",
-      description: "Read detailed feeding, diaper, and shower records within a date range of up to 90 days, including milk volume, food, diaper contents, and poo level. Optionally filter by event types.",
+      description: "Read detailed feeding, diaper, shower, and sleep records within a date range of up to 90 days, including milk volume, food, diaper contents, poo level, and sleep duration. Optionally filter by event types.",
       inputSchema: z.object({
         start_date: dateSchema,
         end_date: dateSchema,
-        event_types: z.array(eventTypeSchema).max(4).optional(),
+        event_types: z.array(eventTypeSchema).max(5).optional(),
       }).strict(),
       annotations: readOnlyAnnotations,
     },
@@ -125,10 +125,12 @@ const handler = createMcpHandler((server) => {
         end_date,
         totals: countEvents(events),
         total_milk_ml: sumMilk(events),
+        total_completed_sleep_minutes: sumSleepMinutes(events),
         days: [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, rows]) => ({
           date,
           counts: countEvents(rows),
           milk_ml: sumMilk(rows),
+          completed_sleep_minutes: sumSleepMinutes(rows),
         })),
       };
     }),
@@ -285,6 +287,8 @@ function publicEvent(event: BabyEvent) {
     amount_ml: event.amount_ml,
     diaper_type: event.diaper_type,
     poo_level: event.poo_level,
+    sleep_type: event.sleep_type,
+    ended_at: event.ended_at,
     note: event.note,
   };
 }
@@ -296,18 +300,26 @@ function summarize(profile: BabyProfile, date: string, events: BabyEvent[]) {
     date,
     counts: countEvents(events),
     total_milk_ml: sumMilk(events),
+    total_completed_sleep_minutes: sumSleepMinutes(events),
     events: events.map(publicEvent),
   };
 }
 
 function countEvents(events: BabyEvent[]) {
-  const counts: Record<EventType, number> = { milk: 0, food: 0, diaper: 0, shower: 0 };
+  const counts: Record<EventType, number> = { milk: 0, food: 0, diaper: 0, shower: 0, sleep: 0 };
   for (const event of events) counts[event.event_type] += 1;
   return counts;
 }
 
 function sumMilk(events: BabyEvent[]) {
   return events.reduce((total, event) => total + (event.event_type === "milk" ? event.amount_ml ?? 0 : 0), 0);
+}
+
+function sumSleepMinutes(events: BabyEvent[]) {
+  return events.reduce((total, event) => {
+    if (event.event_type !== "sleep" || !event.ended_at) return total;
+    return total + Math.max(0, Math.floor((Date.parse(event.ended_at) - Date.parse(event.occurred_at)) / 60_000));
+  }, 0);
 }
 
 function hongKongDay(date: string) {

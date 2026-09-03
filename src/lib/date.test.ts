@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, formatScheduleTime, formatTime, isScheduleReminderActive, scheduleOccursOn, shiftDate, startOfWeek, weekDates } from "./date";
+import { ageLabel, durationLabel, formatScheduleTime, formatTime, isScheduleReminderActive, scheduleOccursOn, shiftDate, startOfWeek, weekDates } from "./date";
 
 describe("date helpers", () => {
   it("calculates the supplied baby age", () => {
@@ -39,5 +39,10 @@ describe("date helpers", () => {
     const item = { event_date: "2026-09-02", repeats_weekly: true, repeat_until: "2026-10-02" };
     expect(scheduleOccursOn(item, "2026-09-30")).toBe(true);
     expect(scheduleOccursOn(item, "2026-10-07")).toBe(false);
+  });
+
+  it("formats sleep durations in both supported languages", () => {
+    expect(durationLabel("2026-09-02T13:00:00Z", "2026-09-02T14:35:00Z")).toBe("1h 35m");
+    expect(durationLabel("2026-09-02T13:00:00Z", "2026-09-02T13:45:00Z", "zh-Hant")).toBe("45 分鐘");
   });
 });

@@ -132,3 +132,20 @@ export function elapsedLabel(value: string, now = new Date(), language: "en" | "
   const days = Math.floor(hours / 24);
   return language === "zh-Hant" ? `${days} 日前` : `${days}d ago`;
 }
+
+export function durationLabel(
+  startedAt: string,
+  endedAt: string | Date = new Date(),
+  language: "en" | "zh-Hant" = "en",
+): string {
+  const end = typeof endedAt === "string" ? new Date(endedAt) : endedAt;
+  const minutes = Math.max(0, Math.floor((end.getTime() - new Date(startedAt).getTime()) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (language === "zh-Hant") {
+    if (!hours) return `${minutes} 分鐘`;
+    return remainder ? `${hours} 小時 ${remainder} 分鐘` : `${hours} 小時`;
+  }
+  if (!hours) return `${minutes}m`;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}

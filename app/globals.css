@@ -357,6 +357,28 @@ textarea:focus-visible {
 .event-icon.sage { background: #cfe1d4; }
 .quick-button.sky,
 .event-icon.sky { background: #cfe1eb; }
+.quick-button.lilac,
+.event-icon.lilac { background: #ddd5ec; }
+
+.sleep-quick-button {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 14px;
+  min-height: 88px;
+}
+
+.sleep-quick-button .quick-emoji {
+  grid-row: 1 / 3;
+  align-self: center;
+  margin: 0;
+}
+
+.sleep-quick-button.active-sleep {
+  box-shadow: inset 0 0 0 2px rgba(91, 67, 129, 0.24), 0 12px 25px rgba(87, 57, 47, 0.08);
+}
 
 .quick-emoji {
   display: block;
@@ -388,7 +410,7 @@ textarea:focus-visible {
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   margin-bottom: 14px;
   padding: 12px 4px;
   border: 1px solid rgba(99, 73, 64, 0.08);
@@ -1397,14 +1419,16 @@ code {
 }
 
 .poo-picker,
-.diaper-picker {
+.diaper-picker,
+.sleep-picker {
   margin: 0;
   padding: 0;
   border: 0;
 }
 
 .poo-picker legend,
-.diaper-picker legend {
+.diaper-picker legend,
+.sleep-picker legend {
   margin-bottom: 8px;
   color: var(--muted);
   font-size: 0.72rem;
@@ -1412,16 +1436,19 @@ code {
 }
 
 .poo-picker > div,
-.diaper-picker > div {
+.diaper-picker > div,
+.sleep-picker > div {
   display: grid;
   gap: 8px;
 }
 
 .poo-picker > div { grid-template-columns: repeat(5, 1fr); }
 .diaper-picker > div { grid-template-columns: repeat(3, 1fr); }
+.sleep-picker > div { grid-template-columns: repeat(2, 1fr); }
 
 .poo-picker button,
-.diaper-picker button {
+.diaper-picker button,
+.sleep-picker button {
   min-height: 48px;
   border: 1px solid #e0d3cc;
   border-radius: 13px;
@@ -1431,7 +1458,8 @@ code {
   font-weight: 800;
 }
 
-.diaper-picker button {
+.diaper-picker button,
+.sleep-picker button {
   display: grid;
   place-items: center;
   gap: 3px;
@@ -1439,13 +1467,21 @@ code {
   font-size: 0.82rem;
 }
 
-.diaper-picker button span { font-size: 1.2rem; }
+.diaper-picker button span,
+.sleep-picker button span { font-size: 1.2rem; }
 
 .poo-picker button.selected,
-.diaper-picker button.selected {
+.diaper-picker button.selected,
+.sleep-picker button.selected {
   border-color: #6f9a79;
   color: #315c3d;
   background: #dcecdf;
+}
+
+.sleep-picker button.selected {
+  border-color: #8f79ae;
+  color: #55406f;
+  background: #eee8f7;
 }
 
 .toast {
@@ -1798,8 +1834,13 @@ code {
   }
 
   .hero { padding-top: 26px; }
-  .quick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .quick-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
   .quick-button { min-height: 118px; }
+  .sleep-quick-button {
+    grid-column: auto;
+    display: block;
+  }
+  .sleep-quick-button .quick-emoji { margin-bottom: 15px; }
   .growth-cards { gap: 14px; }
   .growth-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .growth-cards .metric-card:last-child:nth-child(odd) { grid-column: auto; }
