@@ -330,11 +330,12 @@ textarea:focus-visible {
 
 .quick-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .quick-button {
+  grid-column: span 2;
   display: flex;
   min-width: 0;
   min-height: 84px;
@@ -349,6 +350,8 @@ textarea:focus-visible {
   cursor: pointer;
   transition: transform 120ms ease, filter 120ms ease;
 }
+
+.quick-button:nth-child(4) { grid-column: 2 / span 2; }
 
 .quick-button:active {
   transform: scale(0.975);
@@ -371,7 +374,7 @@ textarea:focus-visible {
 .event-icon.lilac { background: #ddd5ec; }
 
 .sleep-quick-button {
-  grid-column: auto;
+  grid-column: span 2;
 }
 
 .sleep-quick-button .quick-emoji {
@@ -1832,8 +1835,8 @@ code {
   .quick-record-section .section-title { align-items: center; margin-bottom: 10px; }
   .quick-record-section .section-title h2 { font-size: 1.45rem; }
   .quick-record-section .section-title > span { display: none; }
-  .quick-grid { gap: 6px; }
-  .quick-button { min-height: 82px; padding: 8px 3px; border-radius: 17px; }
+  .quick-grid { gap: 8px; }
+  .quick-button { min-height: 84px; padding: 8px 5px; border-radius: 17px; }
 
   .today-schedule {
     display: grid;
@@ -1880,8 +1883,8 @@ code {
   .hero h1 { font-size: 2rem; }
   .bottom-nav { padding-right: 5px; padding-left: 5px; }
   .bottom-nav button small { font-size: 0.58rem; }
-  .quick-grid { gap: 5px; }
-  .quick-button { min-height: 80px; padding-right: 2px; padding-left: 2px; }
+  .quick-grid { gap: 7px; }
+  .quick-button { min-height: 82px; padding-right: 4px; padding-left: 4px; }
   .growth-cards { gap: 7px; }
   .metric-card { padding: 12px; }
   .event-main { grid-template-columns: 42px minmax(0, 1fr) auto; gap: 8px; padding-left: 10px; }
@@ -1907,8 +1910,9 @@ code {
   }
 
   .hero { padding-top: 26px; }
-  .quick-grid { gap: 10px; }
-  .quick-button { min-height: 94px; padding: 10px 6px; }
+  .quick-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .quick-button,
+  .quick-button:nth-child(4) { grid-column: auto; min-height: 94px; padding: 10px 6px; }
   .quick-emoji { font-size: 1.65rem; }
   .quick-button strong { font-size: 0.95rem; }
   .sleep-quick-button.active-sleep strong { font-size: 0.95rem; }
