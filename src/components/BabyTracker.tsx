@@ -1600,7 +1600,7 @@ function GrowthCurve({
   const padding = (rawMax - rawMin || 1) * 0.08;
   const min = rawMin - padding;
   const max = rawMax + padding;
-  const xFor = (age: number) => 16 + (age / chartMaxAge) * 276;
+  const xFor = (age: number) => 16 + (age / chartMaxAge) * 288;
   const yFor = (value: number) => 106 - ((value - min) / (max - min)) * 86;
   const measurementCoordinates = measurements.map((item) => ({ x: xFor(item.age), y: yFor(item.value) }));
   const measurementPoints = measurementCoordinates.map(({ x, y }) => `${x},${y}`).join(" ");
@@ -1609,12 +1609,14 @@ function GrowthCurve({
   return (
     <article className="panel growth-curve-card">
       <div className="growth-curve-heading"><span>{label}</span><div><strong>{latest.value.toFixed(digits)} {unit}</strong>{latestPercentile ? <small>{t("whoPercentile", { percent: latestPercentile })}</small> : null}</div></div>
+      <div className="growth-percentile-legend" aria-label={t("whoCurveLegend")}>
+        {WHO_PERCENTILE_CURVES.map((curve) => <span className={curve.percentile === 50 ? "median" : ""} key={curve.percentile}><i aria-hidden="true" /><b>{curve.percentile}%</b></span>)}
+      </div>
       <svg className="growth-curve" viewBox="0 0 320 120" role="img" aria-label={`${label}: ${latestPercentile ? t("whoPercentile", { percent: latestPercentile }) : latest.value}`}>
-        {[20, 63, 106].map((y) => <line key={y} x1="16" x2="292" y1={y} y2={y} stroke="#eee5df" strokeWidth="1" />)}
+        {[20, 63, 106].map((y) => <line key={y} x1="16" x2="304" y1={y} y2={y} stroke="#eee5df" strokeWidth="1" />)}
         {referenceCurves.map((curve) => {
           const referencePoints = curve.values.map((item) => `${xFor(item.age)},${yFor(item.value)}`).join(" ");
-          const last = curve.values.at(-1);
-          return <g key={curve.percentile}><polyline points={referencePoints} fill="none" stroke={curve.percentile === 50 ? "#9f8a80" : "#c9bbb4"} strokeWidth={curve.percentile === 50 ? "1.8" : "1.1"} strokeDasharray={curve.percentile === 50 ? undefined : "3 3"} /><text x="297" y={(last ? yFor(last.value) : 0) + 3} fill="#8c7a72" fontSize="7" fontWeight="700">{curve.percentile}%</text></g>;
+          return <polyline key={curve.percentile} points={referencePoints} fill="none" stroke={curve.percentile === 50 ? "#9f8a80" : "#c9bbb4"} strokeWidth={curve.percentile === 50 ? "1.8" : "1.1"} strokeDasharray={curve.percentile === 50 ? undefined : "3 3"} />;
         })}
         {measurements.length > 1 ? <polyline points={measurementPoints} fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
         {measurementCoordinates.map(({ x, y }, index) => <circle key={`${measurements[index].date}-${measurements[index].value}`} cx={x} cy={y} r="4" fill="#fff" stroke={color} strokeWidth="3" />)}
