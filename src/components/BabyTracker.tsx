@@ -22,6 +22,7 @@ import {
 } from "@/src/lib/date";
 import { unlockHousehold } from "@/src/lib/household-auth";
 import { I18nProvider, useI18n, type TranslationKey } from "@/src/lib/i18n";
+import { findFirstNextDayWakeEvent } from "@/src/lib/sleep";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-browser";
 import { ageInMonths, formatWhoPercentile, whoPercentile, whoReferenceValue, WHO_PERCENTILE_CURVES, type WhoGrowthMetric } from "@/src/lib/who-growth";
 import type {
@@ -509,12 +510,13 @@ function BabyTrackerApp() {
   }
 
   async function saveQuickEvent(draft: EventDraft) {
-    const activeNightSleep = draft.event_type === "diaper"
+    const activeNightSleep = draft.event_type === "diaper" || draft.event_type === "milk"
       ? events.find((event) => (
           event.event_type === "sleep"
           && event.sleep_type === "night"
           && !event.ended_at
           && Date.parse(event.occurred_at) <= Date.parse(draft.occurred_at)
+          && dateKey(draft.occurred_at) === shiftDate(dateKey(event.occurred_at), 1)
         ))
       : undefined;
     const saved = await addEvent(draft);
@@ -532,7 +534,8 @@ function BabyTrackerApp() {
       setToast({
         event: saved,
         canUndo: false,
-        message: t("nightSleepEndedWithDiaper", {
+        message: t("nightSleepEndedWithMorningRecord", {
+          type: t(EVENT_META[saved.event_type].labelKey),
           time: formatTime(saved.occurred_at, locale),
           duration: durationLabel(activeNightSleep.occurred_at, saved.occurred_at, language),
         }),
@@ -906,6 +909,7 @@ function BabyTrackerApp() {
           type={historyEventType}
           busy={busy}
           defaultDate={selectedDate}
+          events={events}
           mode="history"
           onClose={() => setHistoryEventType(null)}
           onSave={saveQuickEvent}
@@ -1518,6 +1522,7 @@ function QuickEventEditor({
   type,
   busy,
   defaultDate,
+  events = [],
   mode = "live",
   onClose,
   onSave,
@@ -1525,11 +1530,12 @@ function QuickEventEditor({
   type: EventType;
   busy: boolean;
   defaultDate?: string;
+  events?: BabyEvent[];
   mode?: "live" | "history";
   onClose: () => void;
   onSave: (draft: EventDraft) => Promise<void>;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [occurredAt, setOccurredAt] = useState(() => defaultDate ? `${defaultDate}${toDateTimeLocal().slice(10)}` : toDateTimeLocal());
   const [milkType, setMilkType] = useState<MilkType>("formula");
   const [amount, setAmount] = useState("");
@@ -1540,10 +1546,18 @@ function QuickEventEditor({
   const [sleepType, setSleepType] = useState<SleepType>("nap");
   const [endedAt, setEndedAt] = useState(() => toDateTimeLocal());
   const isHistorySleep = type === "sleep" && mode === "history";
+  const sleepStartTime = Date.parse(occurredAt);
+  const manualSleepEndTime = Date.parse(endedAt);
+  const sleepStartedAt = Number.isFinite(sleepStartTime) ? fromDateTimeLocal(occurredAt) : null;
+  const manualSleepEnd = Number.isFinite(manualSleepEndTime) ? fromDateTimeLocal(endedAt) : "";
+  const inferredWakeEvent = isHistorySleep && sleepType === "night" && sleepStartedAt
+    ? findFirstNextDayWakeEvent(events, sleepStartedAt)
+    : null;
+  const needsManualWakeTime = isHistorySleep && !inferredWakeEvent;
+  const effectiveSleepEnd = inferredWakeEvent?.occurred_at ?? manualSleepEnd;
   const meta = EVENT_META[type];
   const diaperNeedsPooLevel = diaperType === "poo" || diaperType === "both";
-  const sleepStartTime = Date.parse(occurredAt);
-  const sleepEndTime = Date.parse(endedAt);
+  const sleepEndTime = Date.parse(effectiveSleepEnd);
   const valid = type === "milk"
     ? Number(amount) > 0
     : type === "food"
@@ -1572,7 +1586,7 @@ function QuickEventEditor({
             diaper_type: type === "diaper" ? diaperType : null,
             poo_level: type === "diaper" && diaperNeedsPooLevel ? pooLevel : null,
             sleep_type: type === "sleep" ? sleepType : null,
-            ended_at: isHistorySleep ? fromDateTimeLocal(endedAt) : null,
+            ended_at: isHistorySleep ? effectiveSleepEnd : null,
             note: note.trim() || null,
           });
         }}>
@@ -1586,7 +1600,8 @@ function QuickEventEditor({
           {type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
           {type === "sleep" ? <SleepTypePicker value={sleepType} onChange={setSleepType} /> : null}
           {type === "sleep" ? <label><span>{t("sleepStart")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label> : null}
-          {isHistorySleep ? <label><span>{t("wakeTime")}</span><input type="datetime-local" value={endedAt} min={occurredAt} max={toDateTimeLocal()} onChange={(event) => setEndedAt(event.target.value)} required /></label> : null}
+          {isHistorySleep && inferredWakeEvent ? <div className="automatic-wake-time"><span aria-hidden="true">✓</span><div><strong>{t("automaticWakeTime", { time: formatTime(inferredWakeEvent.occurred_at, locale) })}</strong><small>{t("automaticWakeSource", { type: t(EVENT_META[inferredWakeEvent.event_type].labelKey) })}</small></div></div> : null}
+          {needsManualWakeTime ? <label><span>{t("wakeTime")}</span><input type="datetime-local" value={endedAt} min={occurredAt} max={toDateTimeLocal()} onChange={(event) => setEndedAt(event.target.value)} required />{sleepType === "night" ? <small className="field-help">{t("wakeTimeNeeded")}</small> : null}</label> : null}
           {type !== "food" ? <>
             <button className="optional-toggle" type="button" aria-expanded={showNote} onClick={() => setShowNote((current) => !current)}>{showNote ? t("hideNote") : t("addNote")}</button>
             {showNote ? <label><span>{t("noteOptional")}</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("optionalNote")} autoFocus /></label> : null}
@@ -1623,7 +1638,7 @@ function WakeUpEditor({
 }) {
   const { language, locale, t } = useI18n();
   const [now, setNow] = useState(() => new Date());
-  const endsWithFirstDiaper = event.sleep_type === "night";
+  const endsWithFirstMorningRecord = event.sleep_type === "night";
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 15_000);
@@ -1634,16 +1649,16 @@ function WakeUpEditor({
     <div className="modal-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose(); }}>
       <section className="bottom-sheet wake-up-sheet" role="dialog" aria-modal="true" aria-labelledby="wake-up-title">
         <div className="sheet-handle" />
-        <div className="sheet-title"><div className="event-icon lilac">⏱️</div><div><p className="eyebrow">{t("sleep")}</p><h2 id="wake-up-title">{endsWithFirstDiaper ? t("nightSleepActive") : t("wakeUpQuestion")}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
+        <div className="sheet-title"><div className="event-icon lilac">⏱️</div><div><p className="eyebrow">{t("sleep")}</p><h2 id="wake-up-title">{endsWithFirstMorningRecord ? t("nightSleepActive") : t("wakeUpQuestion")}</h2></div><button type="button" onClick={onClose} aria-label={t("close")}>×</button></div>
         <div className="wake-up-summary">
           <span className="sleep-live-dot" aria-hidden="true" />
           <strong>{durationLabel(event.occurred_at, now, language)}</strong>
           <p>{sleepTypeLabel(event.sleep_type, t)} · {t("sleepStartedAt", { time: formatTime(event.occurred_at, locale) })}</p>
-          {endsWithFirstDiaper ? <p className="night-wake-note">🩲 {t("endsWithFirstDiaper")}</p> : null}
+          {endsWithFirstMorningRecord ? <p className="night-wake-note">🍼 · 🩲 {t("endsWithFirstMorningRecord")}</p> : null}
         </div>
         <div className="wake-up-actions">
-          {!endsWithFirstDiaper ? <button className="primary-button wake-up-button" type="button" disabled={busy} onClick={() => void onWake()}>{busy ? t("saving") : t("wakeUpNow")}</button> : null}
-          <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{endsWithFirstDiaper ? t("close") : t("keepSleeping")}</button>
+          {!endsWithFirstMorningRecord ? <button className="primary-button wake-up-button" type="button" disabled={busy} onClick={() => void onWake()}>{busy ? t("saving") : t("wakeUpNow")}</button> : null}
+          <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{endsWithFirstMorningRecord ? t("close") : t("keepSleeping")}</button>
           <button className="danger-button" type="button" disabled={busy} onClick={onDelete}>{t("deleteRecord")}</button>
         </div>
       </section>

@@ -1623,6 +1623,33 @@ code {
 .history-type-grid .sky { background: #cfe1eb; }
 .history-type-grid .lilac { background: #ddd5ec; }
 
+.automatic-wake-time {
+  display: flex;
+  min-height: 58px;
+  padding: 10px 12px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid #b8d3c1;
+  border-radius: 15px;
+  background: rgba(207, 225, 212, 0.48);
+}
+
+.automatic-wake-time > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #5b9871;
+  font-weight: 850;
+}
+
+.automatic-wake-time > div { display: grid; gap: 2px; }
+.automatic-wake-time strong { font-size: 0.875rem; }
+.automatic-wake-time small { color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
+
 .toast {
   position: fixed;
   z-index: 40;
