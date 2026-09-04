@@ -1572,6 +1572,28 @@ code {
   background: #eee8f7;
 }
 
+.past-sleep-toggle {
+  display: flex;
+  min-height: 58px;
+  padding: 10px 12px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(238, 232, 247, 0.5);
+}
+
+.past-sleep-toggle input {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  accent-color: #654a82;
+}
+
+.past-sleep-toggle > span { display: grid; gap: 2px; }
+.past-sleep-toggle strong { font-size: 0.875rem; }
+.past-sleep-toggle small { color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
+
 .toast {
   position: fixed;
   z-index: 40;

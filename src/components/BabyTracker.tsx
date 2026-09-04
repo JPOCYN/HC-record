@@ -1471,14 +1471,22 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
   const [diaperType, setDiaperType] = useState<DiaperType | null>(null);
   const [pooLevel, setPooLevel] = useState<number | null>(null);
   const [sleepType, setSleepType] = useState<SleepType>("nap");
+  const [recordPastSleep, setRecordPastSleep] = useState(false);
+  const [endedAt, setEndedAt] = useState(() => toDateTimeLocal());
   const meta = EVENT_META[type];
   const diaperNeedsPooLevel = diaperType === "poo" || diaperType === "both";
+  const sleepStartTime = Date.parse(occurredAt);
+  const sleepEndTime = Date.parse(endedAt);
   const valid = type === "milk"
     ? Number(amount) > 0
     : type === "food"
       ? Boolean(note.trim())
       : type === "diaper"
         ? diaperType != null && (!diaperNeedsPooLevel || pooLevel != null)
+      : type === "sleep" && recordPastSleep
+        ? Number.isFinite(sleepStartTime) &&
+          Number.isFinite(sleepEndTime) &&
+          sleepEndTime >= sleepStartTime
         : true;
 
   return (
@@ -1497,7 +1505,7 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
             diaper_type: type === "diaper" ? diaperType : null,
             poo_level: type === "diaper" && diaperNeedsPooLevel ? pooLevel : null,
             sleep_type: type === "sleep" ? sleepType : null,
-            ended_at: null,
+            ended_at: type === "sleep" && recordPastSleep ? fromDateTimeLocal(endedAt) : null,
             note: note.trim() || null,
           });
         }}>
@@ -1510,12 +1518,15 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
           {type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
           {type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
           {type === "sleep" ? <SleepTypePicker value={sleepType} onChange={setSleepType} /> : null}
+          {type === "sleep" ? <label className="past-sleep-toggle"><input type="checkbox" checked={recordPastSleep} onChange={(event) => setRecordPastSleep(event.target.checked)} /><span><strong>{t("recordPastSleep")}</strong><small>{t("recordPastSleepHelp")}</small></span></label> : null}
+          {type === "sleep" ? <label><span>{t("sleepStart")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label> : null}
+          {type === "sleep" && recordPastSleep ? <label><span>{t("wakeTime")}</span><input type="datetime-local" value={endedAt} min={occurredAt} max={toDateTimeLocal()} onChange={(event) => setEndedAt(event.target.value)} required /></label> : null}
           {type !== "food" ? <>
             <button className="optional-toggle" type="button" aria-expanded={showNote} onClick={() => setShowNote((current) => !current)}>{showNote ? t("hideNote") : t("addNote")}</button>
             {showNote ? <label><span>{t("noteOptional")}</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("optionalNote")} autoFocus /></label> : null}
           </> : null}
-          <label><span>{type === "sleep" ? t("sleepStart") : t("dateAndTime")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label>
-          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? t("saving") : type === "sleep" ? t("startSleep") : t("saveEvent", { type: t(meta.labelKey) })}</button>
+          {type !== "sleep" ? <label><span>{t("dateAndTime")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label> : null}
+          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? t("saving") : type === "sleep" ? recordPastSleep ? t("saveSleep") : t("startSleep") : t("saveEvent", { type: t(meta.labelKey) })}</button>
         </form>
       </section>
     </div>
