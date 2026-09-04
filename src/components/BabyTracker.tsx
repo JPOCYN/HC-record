@@ -160,6 +160,8 @@ function BabyTrackerApp() {
   const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduleItem | null>(null);
   const [addingScheduleDate, setAddingScheduleDate] = useState<string | null>(null);
   const [quickEventType, setQuickEventType] = useState<EventType | null>(null);
+  const [historyAddOpen, setHistoryAddOpen] = useState(false);
+  const [historyEventType, setHistoryEventType] = useState<EventType | null>(null);
   const [toast, setToast] = useState<{ event: BabyEvent; message: string; canUndo?: boolean } | null>(null);
   const [offlineNotice, setOfflineNotice] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -518,6 +520,7 @@ function BabyTrackerApp() {
     const saved = await addEvent(draft);
     if (!saved) return;
     setQuickEventType(null);
+    setHistoryEventType(null);
     if (activeNightSleep) {
       const completedSleep: BabyEvent = {
         ...activeNightSleep,
@@ -826,6 +829,10 @@ function BabyTrackerApp() {
             selectedDate={selectedDate}
             events={selectedEvents}
             onDateChange={setSelectedDate}
+            onAdd={() => {
+              if (!requireOnline()) return;
+              setHistoryAddOpen(true);
+            }}
             onEdit={setEditingEvent}
             onDelete={deleteEvent}
           />
@@ -879,6 +886,28 @@ function BabyTrackerApp() {
           type={quickEventType}
           busy={busy}
           onClose={() => setQuickEventType(null)}
+          onSave={saveQuickEvent}
+        />
+      ) : null}
+
+      {historyAddOpen ? (
+        <HistoryEventPicker
+          date={selectedDate}
+          onClose={() => setHistoryAddOpen(false)}
+          onSelect={(type) => {
+            setHistoryAddOpen(false);
+            setHistoryEventType(type);
+          }}
+        />
+      ) : null}
+
+      {historyEventType ? (
+        <QuickEventEditor
+          type={historyEventType}
+          busy={busy}
+          defaultDate={selectedDate}
+          mode="history"
+          onClose={() => setHistoryEventType(null)}
           onSave={saveQuickEvent}
         />
       ) : null}
@@ -1005,12 +1034,14 @@ function HistoryView({
   selectedDate,
   events,
   onDateChange,
+  onAdd,
   onEdit,
   onDelete,
 }: {
   selectedDate: string;
   events: BabyEvent[];
   onDateChange: (date: string) => void;
+  onAdd: () => void;
   onEdit: (event: BabyEvent) => void;
   onDelete: (id: string) => Promise<void>;
 }) {
@@ -1018,7 +1049,7 @@ function HistoryView({
   const today = dateKey(new Date());
   return (
     <section>
-      <div className="section-title"><div><p className="eyebrow">{t("history")}</p><h2>{formatDayHeading(selectedDate, locale)}</h2></div></div>
+      <div className="section-title history-title"><div><p className="eyebrow">{t("history")}</p><h2>{formatDayHeading(selectedDate, locale)}</h2></div><button className="small-action" type="button" onClick={onAdd}>{t("addRecord")}</button></div>
       <div className="date-switcher">
         <button type="button" onClick={() => onDateChange(shiftDate(selectedDate, -1))} aria-label={t("previousDay")}>‹</button>
         <label>
@@ -1461,9 +1492,45 @@ function localizePinError(message: string) {
   return "無法開啟 Harper 的記錄，請稍後再試。";
 }
 
-function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; busy: boolean; onClose: () => void; onSave: (draft: EventDraft) => Promise<void> }) {
+function HistoryEventPicker({ date, onClose, onSelect }: { date: string; onClose: () => void; onSelect: (type: EventType) => void }) {
+  const { locale, t } = useI18n();
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="bottom-sheet history-event-picker" role="dialog" aria-modal="true" aria-labelledby="history-event-picker-title">
+        <div className="sheet-handle" />
+        <div className="sheet-title history-picker-title">
+          <div className="history-picker-icon" aria-hidden="true">＋</div>
+          <div><p className="eyebrow">{t("chooseRecordType")}</p><h2 id="history-event-picker-title">{t("addRecordFor", { date: formatDayHeading(date, locale) })}</h2></div>
+          <button type="button" onClick={onClose} aria-label={t("close")}>×</button>
+        </div>
+        <div className="history-type-grid">
+          {(Object.keys(EVENT_META) as EventType[]).map((type) => {
+            const meta = EVENT_META[type];
+            return <button className={meta.color} type="button" key={type} onClick={() => onSelect(type)}><span aria-hidden="true">{meta.emoji}</span><strong>{t(meta.labelKey)}</strong></button>;
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function QuickEventEditor({
+  type,
+  busy,
+  defaultDate,
+  mode = "live",
+  onClose,
+  onSave,
+}: {
+  type: EventType;
+  busy: boolean;
+  defaultDate?: string;
+  mode?: "live" | "history";
+  onClose: () => void;
+  onSave: (draft: EventDraft) => Promise<void>;
+}) {
   const { t } = useI18n();
-  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocal());
+  const [occurredAt, setOccurredAt] = useState(() => defaultDate ? `${defaultDate}${toDateTimeLocal().slice(10)}` : toDateTimeLocal());
   const [milkType, setMilkType] = useState<MilkType>("formula");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -1471,8 +1538,8 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
   const [diaperType, setDiaperType] = useState<DiaperType | null>(null);
   const [pooLevel, setPooLevel] = useState<number | null>(null);
   const [sleepType, setSleepType] = useState<SleepType>("nap");
-  const [recordPastSleep, setRecordPastSleep] = useState(false);
   const [endedAt, setEndedAt] = useState(() => toDateTimeLocal());
+  const isHistorySleep = type === "sleep" && mode === "history";
   const meta = EVENT_META[type];
   const diaperNeedsPooLevel = diaperType === "poo" || diaperType === "both";
   const sleepStartTime = Date.parse(occurredAt);
@@ -1483,7 +1550,7 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
       ? Boolean(note.trim())
       : type === "diaper"
         ? diaperType != null && (!diaperNeedsPooLevel || pooLevel != null)
-      : type === "sleep" && recordPastSleep
+      : isHistorySleep
         ? Number.isFinite(sleepStartTime) &&
           Number.isFinite(sleepEndTime) &&
           sleepEndTime >= sleepStartTime
@@ -1505,7 +1572,7 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
             diaper_type: type === "diaper" ? diaperType : null,
             poo_level: type === "diaper" && diaperNeedsPooLevel ? pooLevel : null,
             sleep_type: type === "sleep" ? sleepType : null,
-            ended_at: type === "sleep" && recordPastSleep ? fromDateTimeLocal(endedAt) : null,
+            ended_at: isHistorySleep ? fromDateTimeLocal(endedAt) : null,
             note: note.trim() || null,
           });
         }}>
@@ -1518,15 +1585,14 @@ function QuickEventEditor({ type, busy, onClose, onSave }: { type: EventType; bu
           {type === "diaper" ? <DiaperTypePicker value={diaperType} onChange={(value) => { setDiaperType(value); if (value === "wee") setPooLevel(null); }} /> : null}
           {type === "diaper" && diaperNeedsPooLevel ? <PooLevelPicker value={pooLevel} onChange={setPooLevel} /> : null}
           {type === "sleep" ? <SleepTypePicker value={sleepType} onChange={setSleepType} /> : null}
-          {type === "sleep" ? <label className="past-sleep-toggle"><input type="checkbox" checked={recordPastSleep} onChange={(event) => setRecordPastSleep(event.target.checked)} /><span><strong>{t("recordPastSleep")}</strong><small>{t("recordPastSleepHelp")}</small></span></label> : null}
           {type === "sleep" ? <label><span>{t("sleepStart")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label> : null}
-          {type === "sleep" && recordPastSleep ? <label><span>{t("wakeTime")}</span><input type="datetime-local" value={endedAt} min={occurredAt} max={toDateTimeLocal()} onChange={(event) => setEndedAt(event.target.value)} required /></label> : null}
+          {isHistorySleep ? <label><span>{t("wakeTime")}</span><input type="datetime-local" value={endedAt} min={occurredAt} max={toDateTimeLocal()} onChange={(event) => setEndedAt(event.target.value)} required /></label> : null}
           {type !== "food" ? <>
             <button className="optional-toggle" type="button" aria-expanded={showNote} onClick={() => setShowNote((current) => !current)}>{showNote ? t("hideNote") : t("addNote")}</button>
             {showNote ? <label><span>{t("noteOptional")}</span><textarea rows={2} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("optionalNote")} autoFocus /></label> : null}
           </> : null}
           {type !== "sleep" ? <label><span>{t("dateAndTime")}</span><input type="datetime-local" value={occurredAt} max={toDateTimeLocal()} onChange={(event) => setOccurredAt(event.target.value)} required /></label> : null}
-          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? t("saving") : type === "sleep" ? recordPastSleep ? t("saveSleep") : t("startSleep") : t("saveEvent", { type: t(meta.labelKey) })}</button>
+          <button className="primary-button" type="submit" disabled={busy || !valid}>{busy ? t("saving") : type === "sleep" ? isHistorySleep ? t("saveSleep") : t("startSleep") : t("saveEvent", { type: t(meta.labelKey) })}</button>
         </form>
       </section>
     </div>
