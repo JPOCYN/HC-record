@@ -628,6 +628,38 @@ function BabyTrackerApp() {
     setBusy(false);
   }
 
+  async function updateMeasurement(measurement: Measurement): Promise<boolean> {
+    if (!requireOnline()) return false;
+    setBusy(true);
+    setError(null);
+    const updatedMeasurement = { ...measurement, updated_at: new Date().toISOString() };
+    if (!supabase || !session) {
+      setMeasurements((current) => current.map((item) => (item.id === measurement.id ? updatedMeasurement : item)).sort(sortMeasurements));
+      setBusy(false);
+      return true;
+    }
+    const { data, error: updateError } = await supabase
+      .from("measurements")
+      .update({
+        measured_at: measurement.measured_at,
+        height_cm: measurement.height_cm,
+        weight_kg: measurement.weight_kg,
+        head_circumference_cm: measurement.head_circumference_cm,
+        note: measurement.note?.trim() || null,
+      })
+      .eq("id", measurement.id)
+      .select("*")
+      .single();
+    if (updateError) {
+      setError(updateError.message);
+      setBusy(false);
+      return false;
+    }
+    setMeasurements((current) => current.map((item) => (item.id === measurement.id ? (data as Measurement) : item)).sort(sortMeasurements));
+    setBusy(false);
+    return true;
+  }
+
   async function deleteMeasurement(id: string): Promise<boolean> {
     if (!requireOnline()) return false;
     setBusy(true);
@@ -841,7 +873,7 @@ function BabyTrackerApp() {
           />
         ) : null}
         {tab === "growth" ? (
-          <GrowthView dateOfBirth={profile.date_of_birth} measurements={measurements} busy={busy} onAdd={addMeasurement} onDelete={deleteMeasurement} />
+          <GrowthView dateOfBirth={profile.date_of_birth} measurements={measurements} busy={busy} onAdd={addMeasurement} onUpdate={updateMeasurement} onDelete={deleteMeasurement} />
         ) : null}
         {tab === "settings" ? (
           <SettingsView
@@ -1227,18 +1259,21 @@ function GrowthView({
   measurements,
   busy,
   onAdd,
+  onUpdate,
   onDelete,
 }: {
   dateOfBirth: string;
   measurements: Measurement[];
   busy: boolean;
   onAdd: (draft: MeasurementDraft) => Promise<void>;
+  onUpdate: (measurement: Measurement) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
 }) {
   const { language, locale, t } = useI18n();
   const [measurementType, setMeasurementType] = useState<"weight" | "height" | "headCircumference" | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
   const [date, setDate] = useState(() => toDateTimeLocal());
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
@@ -1322,7 +1357,7 @@ function GrowthView({
           <div className="growth-section-heading"><p className="eyebrow">{t("growthHistory")}</p><h3>{t("measurements")}</h3></div>
           <div className="growth-table-scroll">
             <table className="growth-table">
-              <thead><tr><th>{t("date")}</th><th>{t("weight")}</th><th>{t("height")}</th><th>{t("headCircumference")}</th><th><span className="sr-only">{t("delete")}</span></th></tr></thead>
+              <thead><tr><th>{t("date")}</th><th>{t("weight")}</th><th>{t("height")}</th><th>{t("headCircumference")}</th><th><span className="sr-only">{t("actions")}</span></th></tr></thead>
               <tbody>
                 {newestFirst.map((item) => {
                   const dateLabel = formatShortDate(item.measured_at, locale);
@@ -1337,7 +1372,12 @@ function GrowthView({
                       <td>{item.weight_kg != null ? <><strong>{item.weight_kg.toFixed(3)} kg</strong>{weightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: weightPercentile })}</small> : null}</> : "—"}</td>
                       <td>{item.height_cm != null ? <><strong>{item.height_cm.toFixed(1)} cm</strong>{heightPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: heightPercentile })}</small> : null}</> : "—"}</td>
                       <td>{item.head_circumference_cm != null ? <><strong>{item.head_circumference_cm.toFixed(1)} cm</strong>{headPercentile ? <small className="who-percentile">{t("whoPercentile", { percent: headPercentile })}</small> : null}</> : "—"}</td>
-                      <td><button className={`measurement-delete ${confirming ? "confirm" : ""}`} type="button" disabled={busy || deleting} aria-label={confirming ? t("confirmDeleteMeasurement", { date: dateLabel }) : t("deleteMeasurement", { date: dateLabel })} onClick={() => void handleDelete(item.id)}>{deleting ? t("deleting") : confirming ? t("confirm") : t("delete")}</button></td>
+                      <td>
+                        <div className="measurement-actions">
+                          <button className="measurement-edit" type="button" disabled={busy} aria-label={t("editMeasurementFrom", { date: dateLabel })} onClick={() => { setConfirmDeleteId(null); setEditingMeasurement(item); }}>{t("edit")}</button>
+                          <button className={`measurement-delete ${confirming ? "confirm" : ""}`} type="button" disabled={busy || deleting} aria-label={confirming ? t("confirmDeleteMeasurement", { date: dateLabel }) : t("deleteMeasurement", { date: dateLabel })} onClick={() => void handleDelete(item.id)}>{deleting ? t("deleting") : confirming ? t("confirm") : t("delete")}</button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -1348,7 +1388,74 @@ function GrowthView({
       ) : (
         <EmptyState text={t("noMeasurements")} />
       )}
+
+      {editingMeasurement ? (
+        <MeasurementEditSheet
+          measurement={editingMeasurement}
+          busy={busy}
+          onClose={() => setEditingMeasurement(null)}
+          onSave={async (measurement) => {
+            if (await onUpdate(measurement)) setEditingMeasurement(null);
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function MeasurementEditSheet({
+  measurement,
+  busy,
+  onClose,
+  onSave,
+}: {
+  measurement: Measurement;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (measurement: Measurement) => Promise<void>;
+}) {
+  const { t } = useI18n();
+  const [date, setDate] = useState(() => toDateTimeLocal(measurement.measured_at));
+  const [height, setHeight] = useState(measurement.height_cm?.toString() ?? "");
+  const [weight, setWeight] = useState(measurement.weight_kg?.toString() ?? "");
+  const [headCircumference, setHeadCircumference] = useState(measurement.head_circumference_cm?.toString() ?? "");
+  const [note, setNote] = useState(measurement.note ?? "");
+  const hasValue = Boolean(height || weight || headCircumference);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!hasValue) return;
+    await onSave({
+      ...measurement,
+      measured_at: fromDateTimeLocal(date),
+      height_cm: height ? Number(height) : null,
+      weight_kg: weight ? Number(weight) : null,
+      head_circumference_cm: headCircumference ? Number(headCircumference) : null,
+      note: note.trim() || null,
+    });
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (!busy && event.target === event.currentTarget) onClose(); }}>
+      <section className="bottom-sheet measurement-edit-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-measurement-title">
+        <div className="sheet-handle" />
+        <div className="sheet-title">
+          <span aria-hidden="true">↗</span>
+          <h2 id="edit-measurement-title">{t("editMeasurement")}</h2>
+          <button type="button" disabled={busy} aria-label={t("cancel")} onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={(event) => void submit(event)}>
+          <label><span>{t("dateAndTime")}</span><input type="datetime-local" value={date} max={toDateTimeLocal()} onChange={(event) => setDate(event.target.value)} required /></label>
+          <div className="form-grid measurement-edit-fields">
+            <label><span>{t("weightKg")}</span><input inputMode="decimal" type="number" min="0.1" max="200" step="0.001" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="8.200" /></label>
+            <label><span>{t("heightCm")}</span><input inputMode="decimal" type="number" min="20" max="200" step="0.1" value={height} onChange={(event) => setHeight(event.target.value)} placeholder="70.1" /></label>
+            <label className="full-field"><span>{t("headCircumferenceCm")}</span><input inputMode="decimal" type="number" min="15" max="80" step="0.1" value={headCircumference} onChange={(event) => setHeadCircumference(event.target.value)} placeholder="40.0" /></label>
+          </div>
+          <label><span>{t("noteOptional")}</span><input value={note} maxLength={1000} onChange={(event) => setNote(event.target.value)} placeholder={t("measuredAtHome")} /></label>
+          <button className="primary-button" type="submit" disabled={busy || !hasValue}>{busy ? t("saving") : t("saveChanges")}</button>
+        </form>
+      </section>
+    </div>
   );
 }
 

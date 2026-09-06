@@ -1155,9 +1155,15 @@ textarea {
 .growth-date small { display: block; }
 .growth-date small { margin-top: 3px; color: var(--muted); font-size: 0.62rem; font-weight: 600; }
 
+.measurement-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.measurement-edit,
 .measurement-delete {
   width: 100%;
-  min-height: 34px;
+  min-height: 42px;
   padding: 4px 6px;
   border: 0;
   border-radius: 9px;
@@ -1168,8 +1174,29 @@ textarea {
   cursor: pointer;
 }
 
+.measurement-edit {
+  border: 1px solid #e0d3cc;
+  color: var(--ink);
+  background: #fff;
+}
+
 .measurement-delete.confirm { color: #fff; background: #b65349; }
+.measurement-edit:disabled,
 .measurement-delete:disabled { opacity: 0.55; }
+
+.measurement-edit-sheet .sheet-title > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--brand-dark);
+  background: #f8e4dc;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.measurement-edit-fields { gap: 9px; }
 
 .settings-form {
   display: grid;
