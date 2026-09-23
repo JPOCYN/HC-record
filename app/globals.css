@@ -71,6 +71,44 @@ textarea:focus-visible {
 
 .hero-profile { min-width: 0; }
 
+.hero-tools {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.family-hub-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 7px 11px;
+  border: 1px solid rgba(99, 73, 64, 0.13);
+  border-radius: 14px;
+  color: var(--ink);
+  background: rgba(255, 253, 251, 0.9);
+  box-shadow: 0 7px 20px rgba(87, 57, 47, 0.07);
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.family-hub-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--brand-dark);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.family-hub-button:active { background: #fff5f0; }
+
 .hero h1,
 .section-title h2,
 .sheet-title h2,
@@ -1735,18 +1773,52 @@ code {
   text-align: center;
 }
 
-.pin-language {
+.login-topbar {
   position: fixed;
   z-index: 2;
   top: calc(14px + env(safe-area-inset-top));
   right: 14px;
-  width: min(190px, calc(100% - 28px));
+  left: 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pin-language {
+  width: min(190px, 56vw);
   padding: 7px 9px;
   border: 1px solid rgba(99, 73, 64, 0.1);
   border-radius: 14px;
   background: rgba(255, 253, 251, 0.88);
   box-shadow: 0 8px 24px rgba(87, 57, 47, 0.07);
   backdrop-filter: blur(12px);
+}
+
+.login-topbar .pin-language {
+  flex: 0 1 190px;
+}
+
+.login-topbar .family-hub-button {
+  flex: 0 0 auto;
+}
+
+/* Keep the login controls inside the safe area on narrow iPhones. */
+@media (max-width: 359px) {
+  .login-topbar {
+    right: 10px;
+    left: 10px;
+  }
+
+  .login-topbar .family-hub-button {
+    padding-right: 9px;
+    padding-left: 9px;
+    font-size: 0.7rem;
+  }
+
+  .pin-language {
+    width: min(166px, 54vw);
+  }
 }
 
 .language-select.compact {

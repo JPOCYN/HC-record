@@ -61,6 +61,7 @@ const BLOOD_TYPES: readonly BloodType[] = ["A+", "A-", "B+", "B-", "AB+", "AB-",
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 const DEMO_BABY_ID = "00000000-0000-0000-0000-000000000002";
+const FAMILY_HUB_URL = "https://oc-family-hub.vercel.app/";
 
 function makeDemoProfile(): BabyProfile {
   const now = new Date().toISOString();
@@ -822,9 +823,12 @@ function BabyTrackerApp() {
             <h1>{profile.name}</h1>
             <p className="baby-age">{t("girl")} · {ageLabel(profile.date_of_birth, now, language)}</p>
           </div>
-          <div className="hero-clock">
-            <time className="hero-time" dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
-            <span>{formatCurrentDate(now, locale)}</span>
+          <div className="hero-tools">
+            <FamilyHubButton />
+            <div className="hero-clock">
+              <time className="hero-time" dateTime={now.toISOString()}>{formatCurrentTime(now, locale)}</time>
+              <span>{formatCurrentDate(now, locale)}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -1565,7 +1569,10 @@ function PinScreen() {
 
   return (
     <main className="login-shell">
-      <div className="pin-language"><LanguageSelect compact /></div>
+      <header className="login-topbar">
+        <FamilyHubButton />
+        <div className="pin-language"><LanguageSelect compact /></div>
+      </header>
       <div className="login-icon">👶🏻</div>
       <p className="eyebrow">{t("privateTracker")}</p>
       <h1>{t("enterPin")}</h1>
@@ -1576,6 +1583,41 @@ function PinScreen() {
         <button className="primary-button" type="submit" disabled={busy || pin.length !== 4}>{busy ? t("opening") : t("openRecords")}</button>
       </form>
     </main>
+  );
+}
+
+function FamilyHubButton() {
+  const { t } = useI18n();
+  const dirtyForms = useRef(new Set<HTMLFormElement>());
+
+  useEffect(() => {
+    const markFormDirty = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const form = target.closest("form");
+      if (form instanceof HTMLFormElement) dirtyForms.current.add(form);
+    };
+    document.addEventListener("input", markFormDirty, true);
+    document.addEventListener("change", markFormDirty, true);
+    return () => {
+      document.removeEventListener("input", markFormDirty, true);
+      document.removeEventListener("change", markFormDirty, true);
+    };
+  }, []);
+
+  function openFamilyHub() {
+    const hasUnsavedChanges = [...dirtyForms.current].some((form) => form.isConnected);
+    if (hasUnsavedChanges && !window.confirm(t("leaveWithUnsavedChanges"))) return;
+    window.location.replace(FAMILY_HUB_URL);
+  }
+
+  return (
+    <button className="family-hub-button" type="button" onClick={openFamilyHub}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 11.5 12 4l9 7.5M5.5 10v9h13v-9M9.5 19v-5h5v5" />
+      </svg>
+      <span>{t("familyHub")}</span>
+    </button>
   );
 }
 
