@@ -1,5 +1,7 @@
 # Baby Record
 
+Also available inside [Family Hub](https://oc-family-hub.vercel.app/baby). Read [FAMILY-HUB.md](FAMILY-HUB.md) before changing routes, asset paths, PWA configuration, or deployment settings.
+
 A private, iPhone-first baby care tracker for feeding, diaper, height, and weight records. It includes a read-only MCP endpoint so ChatGPT can answer questions about the data after the owner explicitly connects and approves access.
 
 ## Stack

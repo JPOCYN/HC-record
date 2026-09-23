@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   title: "Baby Record",
   description: "A private feeding, diaper, height, and weight tracker.",
   applicationName: "Baby Record",
+  // On the Hub origin this resolves to the single Family Hub PWA manifest.
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -14,8 +16,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/icon.svg",
-    apple: "/apple-touch-icon.png",
+    icon: "/baby-assets/icon.svg",
+    apple: "/baby-assets/apple-touch-icon.png",
   },
 };
 

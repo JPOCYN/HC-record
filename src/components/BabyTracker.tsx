@@ -1608,7 +1608,8 @@ function FamilyHubButton() {
   function openFamilyHub() {
     const hasUnsavedChanges = [...dirtyForms.current].some((form) => form.isConnected);
     if (hasUnsavedChanges && !window.confirm(t("leaveWithUnsavedChanges"))) return;
-    window.location.replace(FAMILY_HUB_URL);
+    // Stay in the current PWA window on the Hub; preserve the legacy entrance.
+    window.location.assign(window.location.origin === new URL(FAMILY_HUB_URL).origin ? "/" : FAMILY_HUB_URL);
   }
 
   return (
