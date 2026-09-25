@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
+import { createContext, ReactNode, useCallback, useContext, useMemo } from "react";
+import { useFamilyLanguage } from "./family-preferences";
 
 export type Language = "en" | "zh-Hant";
 
@@ -471,36 +472,13 @@ type I18nValue = {
 };
 
 const I18nContext = createContext<I18nValue | null>(null);
-const LANGUAGE_EVENT = "harper-language-change";
-
-function subscribeToLanguage(callback: () => void) {
-  window.addEventListener("storage", callback);
-  window.addEventListener(LANGUAGE_EVENT, callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener(LANGUAGE_EVENT, callback);
-  };
-}
-
-function getLanguageSnapshot(): Language {
-  return window.localStorage.getItem("harper-language") === "zh-Hant" ? "zh-Hant" : "en";
-}
-
-function getServerLanguageSnapshot(): Language {
-  return "en";
-}
-
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const language = useSyncExternalStore(subscribeToLanguage, getLanguageSnapshot, getServerLanguageSnapshot);
-
+  const shared = useFamilyLanguage("harper-language");
+  const language: Language = shared.language === "zh-HK" ? "zh-Hant" : "en";
+  const changeFamilyLanguage = shared.setLanguage;
   const setLanguage = useCallback((next: Language) => {
-    window.localStorage.setItem("harper-language", next);
-    window.dispatchEvent(new Event(LANGUAGE_EVENT));
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.lang = language === "zh-Hant" ? "zh-Hant" : "en";
-  }, [language]);
+    changeFamilyLanguage(next === "zh-Hant" ? "zh-HK" : "en");
+  }, [changeFamilyLanguage]);
 
   const value = useMemo<I18nValue>(() => ({
     language,

@@ -21,6 +21,7 @@ import {
   weekDates,
 } from "@/src/lib/date";
 import { unlockHousehold } from "@/src/lib/household-auth";
+import { familyHubHref } from "@/src/lib/family-preferences";
 import { I18nProvider, useI18n, type TranslationKey } from "@/src/lib/i18n";
 import { findFirstNextDayWakeEvent } from "@/src/lib/sleep";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/src/lib/supabase-browser";
@@ -61,7 +62,7 @@ const BLOOD_TYPES: readonly BloodType[] = ["A+", "A-", "B+", "B-", "AB+", "AB-",
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 const DEMO_BABY_ID = "00000000-0000-0000-0000-000000000002";
-const FAMILY_HUB_URL = "https://oc-family-hub.vercel.app/";
+// Family navigation and language use the same contract as the Hub and Finance.
 
 function makeDemoProfile(): BabyProfile {
   const now = new Date().toISOString();
@@ -1609,11 +1610,11 @@ function FamilyHubButton() {
     const hasUnsavedChanges = [...dirtyForms.current].some((form) => form.isConnected);
     if (hasUnsavedChanges && !window.confirm(t("leaveWithUnsavedChanges"))) return;
     // Stay in the current PWA window on the Hub; preserve the legacy entrance.
-    window.location.assign(window.location.origin === new URL(FAMILY_HUB_URL).origin ? "/" : FAMILY_HUB_URL);
+    window.location.assign(familyHubHref(window.location.origin));
   }
 
   return (
-    <button className="family-hub-button" type="button" onClick={openFamilyHub}>
+    <button className="family-hub-button fh-home" type="button" onClick={openFamilyHub}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M3 11.5 12 4l9 7.5M5.5 10v9h13v-9M9.5 19v-5h5v5" />
       </svg>
@@ -1624,6 +1625,13 @@ function FamilyHubButton() {
 
 function LanguageSelect({ compact = false }: { compact?: boolean }) {
   const { language, setLanguage, t } = useI18n();
+  if (compact) return (
+    <button className="fh-language" type="button"
+      aria-label={language === "en" ? "切換至繁體中文" : "Switch to English"}
+      onClick={() => setLanguage(language === "en" ? "zh-Hant" : "en")}>
+      {language === "en" ? "繁中" : "EN"}
+    </button>
+  );
   return (
     <label className={`language-select ${compact ? "compact" : ""}`}>
       <span>{t("language")}</span>

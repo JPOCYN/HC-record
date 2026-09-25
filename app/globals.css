@@ -1,9 +1,9 @@
 :root {
-  --ink: #392e2a;
-  --muted: #796b65;
-  --line: #eadfd8;
-  --paper: #fffdfb;
-  --background: #f7f1ec;
+  --ink: var(--fh-ink);
+  --muted: var(--fh-muted);
+  --line: var(--fh-line);
+  --paper: var(--fh-surface);
+  --background: var(--fh-background);
   --brand: #d86f59;
   --brand-dark: #aa4f3e;
   --shadow: 0 12px 34px rgba(87, 57, 47, 0.09);
@@ -114,7 +114,7 @@ textarea:focus-visible {
 .sheet-title h2,
 .login-shell h1 {
   margin: 3px 0 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-weight: 500;
   letter-spacing: -0.035em;
 }
@@ -242,7 +242,7 @@ textarea:focus-visible {
 
 .milk-total-card strong {
   color: var(--brand-dark);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 1.55rem;
   font-weight: 500;
 }
@@ -273,7 +273,7 @@ textarea:focus-visible {
 
 .today-schedule-heading h2 {
   margin: 3px 0 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 1.05rem;
   font-weight: 500;
 }
@@ -468,7 +468,7 @@ textarea:focus-visible {
 }
 
 .quick-button strong {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.1;
@@ -722,7 +722,7 @@ textarea:focus-visible {
 
 .week-day.today .week-day-date { color: var(--brand-dark); background: #fff0ea; }
 .week-day-date span { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
-.week-day-date strong { font-family: Georgia, "Times New Roman", serif; font-size: 1.45rem; font-weight: 500; line-height: 1.1; }
+.week-day-date strong { font-family: var(--fh-serif); font-size: 1.45rem; font-weight: 500; line-height: 1.1; }
 .week-day-date small { margin-top: 2px; font-size: 0.54rem; font-weight: 800; }
 
 .week-day-content {
@@ -1010,7 +1010,7 @@ textarea {
 
 .metric-card strong {
   display: block;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 1.45rem;
   font-weight: 500;
 }
@@ -1030,7 +1030,7 @@ textarea {
 
 .growth-section-heading h3 {
   margin: 3px 0 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 1.35rem;
   font-weight: 500;
 }
@@ -1293,7 +1293,7 @@ textarea {
 .profile-summary strong,
 .profile-summary small { display: block; }
 .profile-summary span { color: #3e7564; font-size: 0.68rem; font-weight: 800; }
-.profile-summary strong { margin-top: 4px; font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 500; }
+.profile-summary strong { margin-top: 4px; font-family: var(--fh-serif); font-size: 1.35rem; font-weight: 500; }
 .profile-summary small { margin-top: 5px; color: var(--muted); font-size: 0.72rem; line-height: 1.4; }
 
 .profile-field-grid {
@@ -1422,7 +1422,7 @@ code {
 
 .offline-dialog h2 {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 1.55rem;
   font-weight: 500;
 }
@@ -1596,7 +1596,7 @@ code {
 }
 
 .wake-up-summary strong {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: 2.25rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -1786,17 +1786,11 @@ code {
 }
 
 .pin-language {
-  width: min(190px, 56vw);
-  padding: 7px 9px;
-  border: 1px solid rgba(99, 73, 64, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 253, 251, 0.88);
-  box-shadow: 0 8px 24px rgba(87, 57, 47, 0.07);
-  backdrop-filter: blur(12px);
+  width: auto;
 }
 
 .login-topbar .pin-language {
-  flex: 0 1 190px;
+  flex: 0 0 auto;
 }
 
 .login-topbar .family-hub-button {
@@ -1817,7 +1811,7 @@ code {
   }
 
   .pin-language {
-    width: min(166px, 54vw);
+    width: auto;
   }
 }
 
@@ -1914,7 +1908,7 @@ code {
 
 .consent-card h1 {
   margin: 7px 0 14px;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--fh-serif);
   font-size: clamp(1.8rem, 8vw, 2.35rem);
   font-weight: 500;
   letter-spacing: -0.04em;
